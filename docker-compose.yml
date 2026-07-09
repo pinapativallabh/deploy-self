@@ -23,6 +23,42 @@ services:
       - redis_data:/data
     restart: always
 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: forge-deploy-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - postgres
+      - redis
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: forge-deploy-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    restart: always
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: forge-deploy-worker
+    env_file:
+      - ./worker/.env
+    depends_on:
+      - redis
+    restart: always
+
 volumes:
   postgres_data:
   redis_data:
