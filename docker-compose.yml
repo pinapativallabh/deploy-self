@@ -1,47 +1,57 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: forge-deploy-postgres
+    container_name: bonk-postgres
     environment:
-      POSTGRES_USER: forgeadmin
-      POSTGRES_PASSWORD: forgepassword
-      POSTGRES_DB: forgedeploy
+      POSTGRES_USER: bonk
+      POSTGRES_PASSWORD: bonk_dev_password
+      POSTGRES_DB: bonk
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bonk"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     restart: always
 
   redis:
     image: redis:7-alpine
-    container_name: forge-deploy-redis
+    container_name: bonk-redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     restart: always
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: forge-deploy-backend
+    container_name: bonk-backend
     ports:
       - "8000:8000"
     env_file:
       - ./backend/.env
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: always
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: forge-deploy-frontend
+    container_name: bonk-frontend
     ports:
       - "3000:3000"
     environment:
@@ -52,7 +62,7 @@ services:
     build:
       context: ./worker
       dockerfile: Dockerfile
-    container_name: forge-deploy-worker
+    container_name: bonk-worker
     env_file:
       - ./worker/.env
     depends_on:

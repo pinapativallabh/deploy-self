@@ -1,30 +1,10 @@
-# ForgeDeploy
+# Bonk
 
-ForgeDeploy is a self-hosted deployment platform (PaaS) inspired by Railway and Render, designed to automate containerized deployments from code repositories to local or remote Docker engines. It is designed to be a robust, production-quality tool for hosting personal projects, managing environments, and monitoring application health.
-
----
-
-## 1. Project Vision & Problem Statement
-
-### The Problem
-Deploying personal projects or small client sites often forces developers into a trade-off:
-- Use expensive public PaaS platforms (Railway, Render, Fly.io, Heroku) which have high markups on resources, limits on active free/cheap hobby tiers, and vendor lock-in.
-- Set up complex Kubernetes clusters or low-level virtual machines (VPS) manually, which incurs significant DevOps overhead, scripting, and lack of a cohesive dashboard interface for monitoring and management.
-
-### The Vision
-ForgeDeploy bridges this gap by providing an easy-to-use, self-hosted platform. It runs on your own hardware or virtual private server (VPS). With ForgeDeploy, you get Git-triggered automatic deployments, env var management, real-time logging, and system health checks, all driven from a unified Next.js dashboard, without paying public PaaS markups.
+Bonk is a self-hosted application control plane that orchestrates deployment and operational management for applications running on developer-owned infrastructure.
 
 ---
 
-## 2. Platform Goals
-- **Production-Ready Quality**: Maintain strict robustness, security boundaries, and reliable state recovery.
-- **GitOps Simplicity**: Enable automated Docker deployments triggered via GitHub Webhooks.
-- **Unified Dashboard**: Monitor container health, view logs, and configure environment variables in one place.
-- **Low Resource Overhead**: Run a lightweight control plane using FastAPI, Redis, and a dedicated worker, reserving hosting hardware capacity for customer applications.
-
----
-
-## 3. High-Level Architecture
+## Architecture
 
 ```
                        ┌──────────────────────┐
@@ -56,45 +36,241 @@ ForgeDeploy bridges this gap by providing an easy-to-use, self-hosted platform. 
                        └──────────────────────┘
 ```
 
-- **Frontend (Next.js + Tailwind CSS)**: Renders a modern, responsive web dashboard showing projects, services, deployments, environment settings, and container health.
-- **Backend (FastAPI)**: Serves as the central API gateway. Handles user authentication (JWT), metadata storage, configuration storage, and webhook registration.
-- **PostgreSQL**: Stores stateful relational data (users, projects, deployments, build configurations, logs metadata).
-- **Redis Queue**: Acts as a reliable message broker/task queue to safely hand off deployment pipelines to workers.
-- **Deployment Worker**: Python daemon that consumes deployment requests, checks out repository versions, runs Docker build pipelines, and deploys containers onto the host.
-- **Docker Engine**: The underlying daemon executing the actual user application containers.
+---
+
+## Technology Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Backend | Python 3.11+, FastAPI |
+| Frontend | Next.js, React, Tailwind CSS |
+| Database | PostgreSQL 15 |
+| Cache / Queue | Redis 7 |
+| Migrations | Alembic + SQLAlchemy 2.x |
+| Configuration | Pydantic Settings |
+| Containers | Docker SDK |
+| Orchestration | Docker Compose |
 
 ---
 
-## 4. Technology Stack
+## Prerequisites
 
-- **Backend**: Python 3.11+, FastAPI (high-performance asynchronous framework)
-- **Frontend**: Next.js (React), Tailwind CSS
-- **Database**: PostgreSQL (relational database storage)
-- **Task Queue**: Redis (message queue broker)
-- **Authentication**: JWT (JSON Web Tokens) with cryptographically secure password hashing (bcrypt)
-- **Container Management**: Docker SDK & Docker Compose
-- **Version Control Integrations**: GitHub Webhooks & GitHub API
+- [Docker](https://www.docker.com/) and Docker Compose
+- [Git](https://git-scm.com/)
+- Python 3.11+ (for local development without Docker)
 
 ---
 
-## 5. Repository Folder Structure
+## Quick Start
+
+### Using Docker Compose (recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/pinapativallabh/deploy-self.git
+cd deploy-self
+
+# Start all services
+docker compose up --build
+```
+
+This starts PostgreSQL, Redis, the backend, frontend, and worker. The backend waits for PostgreSQL and Redis health checks to pass before starting.
+
+### Local Development (backend only)
+
+```bash
+# Start dependencies
+docker compose up postgres redis -d
+
+# Set up the backend
+cd backend
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# Copy environment file
+cp .env.example .env
+# Edit .env — set POSTGRES_HOST=localhost and REDIS_HOST=localhost
+
+# Run database migrations
+alembic upgrade head
+
+# Start the backend
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+---
+
+## Project Structure
 
 ```
-forge-deploy/
-├── backend/            # FastAPI source code (models, routes, schemas)
-├── frontend/           # Next.js frontend code (pages, components, styling)
-├── worker/             # Deployment worker engine (deployment pipelines & Docker SDK integration)
-├── docker/             # Configuration files for Docker/deployment environments
-├── docs/               # System design documents and specifications
-├── .gitignore          # Git ignore patterns
-├── docker-compose.yml  # Local services coordinator (PostgreSQL, Redis)
-└── README.md           # Project specification & documentation (this file)
+bonk/
+├── backend/                # FastAPI backend
+│   ├── app/
+│   │   ├── api/            # Route handlers and dependencies
+│   │   │   ├── deps.py     # Dependency injection (DB sessions, Redis)
+│   │   │   └── health.py   # GET /health endpoint
+│   │   ├── core/           # Application infrastructure
+│   │   │   ├── config.py   # Pydantic Settings (centralized configuration)
+│   │   │   ├── logging.py  # Logging configuration
+│   │   │   ├── redis.py    # Redis client lifecycle
+│   │   │   └── exceptions.py  # Global exception handlers
+│   │   ├── db/             # Database infrastructure
+│   │   │   └── session.py  # SQLAlchemy engine, session factory, Base
+│   │   ├── models/         # SQLAlchemy ORM models (future)
+│   │   ├── schemas/        # Pydantic request/response schemas (future)
+│   │   ├── services/       # Business logic layer (future)
+│   │   └── utils/          # Shared utilities (future)
+│   ├── alembic/            # Database migration scripts
+│   │   ├── env.py          # Migration environment configuration
+│   │   ├── script.py.mako  # Migration file template
+│   │   └── versions/       # Migration files
+│   ├── alembic.ini         # Alembic configuration
+│   ├── .env                # Environment variables (not committed)
+│   ├── .env.example        # Environment template
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/               # Next.js frontend
+├── worker/                 # Deployment worker
+├── docker-compose.yml
+└── README.md
 ```
 
 ---
 
-## 6. Development Philosophy
-1. **Incremental Stability**: The codebase must compile, build, and pass checks after every single commit.
-2. **Explicit Code**: Avoid overly clever runtime tricks. Write explicit, type-annotated, and well-structured code.
-3. **No Shortcuts in Production**: We implement production-grade patterns (e.g. database migrations, secure password handling, robust error recovery) rather than quick-and-dirty hacks.
-4. **Clean Architecture**: Decouple business logic from external drivers (the framework, database layers, and the Docker daemon) to allow future extensibility.
+## Environment Variables
+
+All configuration is managed through environment variables loaded by Pydantic Settings. The backend reads from `backend/.env`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_NAME` | `Bonk` | Application display name |
+| `APP_ENV` | `development` | Environment: development, staging, production |
+| `APP_VERSION` | `0.1.0` | Application version (reported in /health) |
+| `LOG_LEVEL` | `info` | Log level: debug, info, warning, error |
+| `HOST` | `0.0.0.0` | Server bind host |
+| `PORT` | `8000` | Server bind port |
+| `POSTGRES_USER` | `bonk` | PostgreSQL username |
+| `POSTGRES_PASSWORD` | `bonk_dev_password` | PostgreSQL password |
+| `POSTGRES_DB` | `bonk` | PostgreSQL database name |
+| `POSTGRES_HOST` | `localhost` | PostgreSQL host (`postgres` in Docker) |
+| `POSTGRES_PORT` | `5432` | PostgreSQL port |
+| `REDIS_HOST` | `localhost` | Redis host (`redis` in Docker) |
+| `REDIS_PORT` | `6379` | Redis port |
+| `REDIS_DB` | `0` | Redis database number |
+
+---
+
+## Migration Workflow
+
+Bonk uses [Alembic](https://alembic.sqlalchemy.org/) for database migrations. All commands run from the `backend/` directory.
+
+### Create a migration
+
+```bash
+# After modifying SQLAlchemy models:
+alembic revision --autogenerate -m "describe the change"
+
+# Review the generated file in alembic/versions/ before applying.
+```
+
+### Apply migrations
+
+```bash
+# Apply all pending migrations
+alembic upgrade head
+
+# Apply inside Docker
+docker compose exec backend alembic upgrade head
+```
+
+### Roll back migrations
+
+```bash
+# Roll back the last migration
+alembic downgrade -1
+
+# Roll back to a specific revision
+alembic downgrade <revision_id>
+
+# Roll back all migrations
+alembic downgrade base
+```
+
+### View migration history
+
+```bash
+# Show current revision
+alembic current
+
+# Show migration history
+alembic history --verbose
+```
+
+---
+
+## API Endpoints
+
+### Health Check
+
+```
+GET /health
+```
+
+Reports application health including dependency status.
+
+**200 OK** — all dependencies healthy:
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0",
+  "environment": "development",
+  "dependencies": {
+    "postgres": { "status": "healthy" },
+    "redis": { "status": "healthy" }
+  }
+}
+```
+
+**503 Service Unavailable** — one or more dependencies unreachable:
+```json
+{
+  "status": "degraded",
+  "version": "0.1.0",
+  "environment": "development",
+  "dependencies": {
+    "postgres": { "status": "healthy" },
+    "redis": { "status": "unhealthy", "error": "..." }
+  }
+}
+```
+
+---
+
+## Development Philosophy
+
+1. **Incremental Stability** — the codebase must compile, build, and pass checks after every commit.
+2. **Explicit Code** — type-annotated, well-structured, no runtime tricks.
+3. **Production Patterns** — database migrations, centralized error handling, structured logging.
+4. **Clean Architecture** — decouple business logic from framework and infrastructure concerns.
+
+---
+
+## Current Status
+
+**Phase 2 complete** — Backend foundation infrastructure.
+
+### Completed
+- ✅ Phase 1: Project skeleton, Docker Compose
+- ✅ Phase 2: Configuration, database, Redis, Alembic, logging, error handling, health checks
+
+### Roadmap
+- Phase 3: Authentication
+- Phase 4: Project management
+- Phase 5: Deployment orchestration
+- Phase 6: Docker SDK integration
+- Phase 7: Background workers
+- Phase 8: GitHub webhooks
+- Phase 9: Deployment history
+- Phase 10: Centralized logging
+- Phase 11: Health monitoring
