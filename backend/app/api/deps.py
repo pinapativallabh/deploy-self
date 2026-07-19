@@ -13,15 +13,29 @@ The generator pattern (yield inside a function) gives us setup/teardown
 semantics. Code before yield runs before the endpoint; code after yield
 runs after the response is sent. This ensures database sessions are
 always closed, even if the endpoint raises an exception.
+
+WHY OAuth2PasswordBearer:
+FastAPI's OAuth2PasswordBearer is not about OAuth2 per se — it's a standard
+way to declare "this endpoint expects a Bearer token in the Authorization
+header." It integrates with OpenAPI/Swagger so the docs show a lock icon
+and an Authorize button. The tokenUrl points to our login endpoint, but
+tokens are obtained via our JSON-based /auth/login, not the OAuth2 form.
 """
 
 from collections.abc import Generator
 
+from fastapi import Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
 from redis.asyncio import Redis
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 
 from app.db.session import SessionLocal
+
+# Declare the token URL for OpenAPI documentation.
+# This makes Swagger UI show the lock icon and Authorize button on
+# protected endpoints. The actual login flow uses our /auth/login endpoint.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -61,3 +75,46 @@ def get_redis(request: Request) -> Redis:
             ...
     """
     return request.app.state.redis
+
+
+def get_raw_token(token: str = Depends(oauth2_scheme)) -> str:
+    """
+    Extract the raw JWT string from the Authorization header.
+
+    This is used by the logout endpoint which needs the raw token string
+    (not the decoded payload) to add it to the revocation list.
+    """
+    return token
+
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+):
+    """
+    Authenticate the current request and return the User.
+
+    This is the primary authentication dependency. Any endpoint that
+    declares `current_user: User = Depends(get_current_user)` will:
+      1. Require a valid Bearer token in the Authorization header
+      2. Verify the token hasn't expired or been revoked
+      3. Load and return the associated User from the database
+
+    If any step fails, a 401 response is returned automatically.
+
+    WHY IMPORT INSIDE THE FUNCTION:
+    auth_service imports from models and schemas, which may import from
+    db.session. Importing auth_service at module level in deps.py could
+    create circular imports. The lazy import avoids this cleanly.
+    """
+    from app.services.auth_service import AuthError, validate_access_token
+
+    try:
+        return await validate_access_token(db, redis, token)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=exc.detail,
+            headers={"WWW-Authenticate": "Bearer"},
+        )

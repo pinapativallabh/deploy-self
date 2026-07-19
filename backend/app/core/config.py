@@ -20,6 +20,8 @@ Compose, Kubernetes, systemd) supports them natively. Config files require
 volume mounting and parsing logic for no additional benefit at this scale.
 """
 
+import secrets
+
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -58,6 +60,20 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
+
+    # --- JWT / Authentication ---
+    # WHY NO DEFAULT FOR JWT_SECRET_KEY IN PRODUCTION:
+    # The default value is only suitable for development. In production,
+    # JWT_SECRET_KEY MUST be set via environment variable. Using a default
+    # secret in production would mean every deployment shares the same
+    # signing key — an attacker who reads the source code can forge tokens.
+    #
+    # We provide a default here to avoid breaking the development experience.
+    # The application logs a warning at startup if the default is in use.
+    JWT_SECRET_KEY: str = "CHANGE-ME-IN-PRODUCTION-" + secrets.token_urlsafe(32)
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -32,6 +32,11 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.db.session import Base
 
+# Import all models here so their tables are registered on Base.metadata.
+# Alembic's autogenerate compares Base.metadata against the database schema.
+# Models not imported here will NOT be detected by autogenerate.
+import app.models  # noqa: F401
+
 # Alembic Config object — provides access to values in alembic.ini
 config = context.config
 

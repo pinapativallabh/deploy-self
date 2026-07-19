@@ -42,14 +42,27 @@ async def validation_exception_handler(
 
     Returns 422 with structured validation error details. These errors occur
     when request body, query params, or path params fail Pydantic validation.
-    The detail field contains Pydantic's error list so the client knows
+    The detail field contains a cleaned error list so the client knows
     exactly which fields are invalid and why.
+
+    WHY WE CLEAN THE ERRORS:
+    Pydantic v2's exc.errors() can include non-JSON-serializable objects in
+    the 'ctx' field (e.g., raw ValueError instances from model_validators).
+    We extract only the fields that are always serializable: type, loc, msg.
     """
+    errors = [
+        {
+            "type": err.get("type", "value_error"),
+            "loc": err.get("loc", []),
+            "msg": err.get("msg", "Validation error"),
+        }
+        for err in exc.errors()
+    ]
     return JSONResponse(
         status_code=422,
         content={
             "error": "validation_error",
-            "detail": exc.errors(),
+            "detail": errors,
         },
     )
 
