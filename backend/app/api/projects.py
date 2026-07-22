@@ -1,16 +1,18 @@
 import uuid
 from typing import List
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
+from fastapi import BackgroundTasks
 
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
+from app.models.project import Project
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.schemas.deployment import DeploymentCreate, DeploymentResponse
 from app.services.project_service import ProjectService
 from app.services.deployment_service import DeploymentService
-from fastapi import BackgroundTasks
+from app.services.runtime_service import RuntimeService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -119,7 +121,6 @@ def trigger_deployment(
         db=db, user=current_user, project_id=project_id, deployment_in=deployment_in
     )
     
-    # Run the orchestrator in the background
     background_tasks.add_task(
         DeploymentService.execute_deployment,
         deployment_id=deployment.id
@@ -161,3 +162,77 @@ def get_deployment(
     return DeploymentService.get_deployment(
         db=db, user=current_user, project_id=project_id, deployment_id=deployment_id
     )
+
+
+@router.get("/{project_id}/runtime")
+def get_runtime_status(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.get(Project, project_id)
+    if not project or project.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Project not found")
+    status = RuntimeService.get_status(db, project_id)
+    inspect = RuntimeService.inspect(db, project_id)
+    return {"status": status["status"], "inspect": inspect}
+
+
+@router.get("/{project_id}/logs")
+def get_runtime_logs(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.get(Project, project_id)
+    if not project or project.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return RuntimeService.get_logs(db, project_id)
+
+
+@router.post("/{project_id}/restart")
+def restart_runtime(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.get(Project, project_id)
+    if not project or project.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return RuntimeService.restart(db, project_id)
+
+
+@router.post("/{project_id}/stop")
+def stop_runtime(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.get(Project, project_id)
+    if not project or project.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return RuntimeService.stop(db, project_id)
+
+
+@router.post("/{project_id}/start")
+def start_runtime(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.get(Project, project_id)
+    if not project or project.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return RuntimeService.start(db, project_id)
+
+
+@router.delete("/{project_id}/runtime")
+def remove_runtime(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.get(Project, project_id)
+    if not project or project.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return RuntimeService.remove(db, project_id)

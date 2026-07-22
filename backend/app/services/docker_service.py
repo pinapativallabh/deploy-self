@@ -134,3 +134,80 @@ class DockerService:
             return None
         except APIError as e:
             raise DockerServiceException(f"Failed to get container status: {e}")
+
+    @staticmethod
+    def restart_container(container_name_or_id: str) -> None:
+        client = DockerService._get_client()
+        try:
+            container = client.containers.get(container_name_or_id)
+            logger.info(f"Restarting container {container_name_or_id}")
+            container.restart(timeout=10)
+        except docker.errors.NotFound:
+            raise DockerServiceException(f"Container {container_name_or_id} not found")
+        except APIError as e:
+            logger.error(f"Failed to restart container {container_name_or_id}: {e}")
+            raise DockerServiceException(f"Failed to restart container: {e}")
+
+    @staticmethod
+    def stop_container(container_name_or_id: str) -> None:
+        client = DockerService._get_client()
+        try:
+            container = client.containers.get(container_name_or_id)
+            logger.info(f"Stopping container {container_name_or_id}")
+            container.stop(timeout=10)
+        except docker.errors.NotFound:
+            raise DockerServiceException(f"Container {container_name_or_id} not found")
+        except APIError as e:
+            logger.error(f"Failed to stop container {container_name_or_id}: {e}")
+            raise DockerServiceException(f"Failed to stop container: {e}")
+
+    @staticmethod
+    def start_container(container_name_or_id: str) -> None:
+        client = DockerService._get_client()
+        try:
+            container = client.containers.get(container_name_or_id)
+            logger.info(f"Starting container {container_name_or_id}")
+            container.start()
+        except docker.errors.NotFound:
+            raise DockerServiceException(f"Container {container_name_or_id} not found")
+        except APIError as e:
+            logger.error(f"Failed to start container {container_name_or_id}: {e}")
+            raise DockerServiceException(f"Failed to start container: {e}")
+
+    @staticmethod
+    def remove_container(container_name_or_id: str) -> None:
+        client = DockerService._get_client()
+        try:
+            container = client.containers.get(container_name_or_id)
+            logger.info(f"Removing container {container_name_or_id}")
+            container.remove(force=True)
+        except docker.errors.NotFound:
+            pass # already removed
+        except APIError as e:
+            logger.error(f"Failed to remove container {container_name_or_id}: {e}")
+            raise DockerServiceException(f"Failed to remove container: {e}")
+
+    @staticmethod
+    def get_container_logs(container_name_or_id: str, tail: int = 100) -> str:
+        client = DockerService._get_client()
+        try:
+            container = client.containers.get(container_name_or_id)
+            logs = container.logs(tail=tail, stdout=True, stderr=True)
+            return logs.decode('utf-8', errors='replace')
+        except docker.errors.NotFound:
+            raise DockerServiceException(f"Container {container_name_or_id} not found")
+        except APIError as e:
+            logger.error(f"Failed to get container logs for {container_name_or_id}: {e}")
+            raise DockerServiceException(f"Failed to get logs: {e}")
+
+    @staticmethod
+    def inspect_container(container_name_or_id: str) -> dict:
+        client = DockerService._get_client()
+        try:
+            container = client.containers.get(container_name_or_id)
+            return container.attrs
+        except docker.errors.NotFound:
+            raise DockerServiceException(f"Container {container_name_or_id} not found")
+        except APIError as e:
+            logger.error(f"Failed to inspect container {container_name_or_id}: {e}")
+            raise DockerServiceException(f"Failed to inspect container: {e}")
