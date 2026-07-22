@@ -8,6 +8,10 @@ All ORM models are imported here so that:
 Every new model MUST be imported in this file or Alembic will not detect it.
 """
 
-from app.models.user import User
+from .user import User
+from .project import Project
 
-__all__ = ["User"]
+__all__ = [
+    "User",
+    "Project",
+]
