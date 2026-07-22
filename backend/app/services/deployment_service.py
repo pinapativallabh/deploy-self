@@ -80,6 +80,8 @@ class DeploymentService:
         """
         Background worker method to orchestrate the deployment pipeline.
         """
+        import time
+        import httpx
         from app.db.session import SessionLocal
         
         with SessionLocal() as db:
@@ -88,6 +90,7 @@ class DeploymentService:
                 return
 
             project = deployment.project
+            old_active_deployment_id = project.active_deployment_id
 
             try:
                 # Started
@@ -96,16 +99,23 @@ class DeploymentService:
                 db.commit()
 
                 # Clone
-                commit_sha = GitService.clone_repo(project.repository_url, deployment.branch)
+                repo_path, commit_sha = GitService.clone_repo(
+                    repository_url=project.repository_url,
+                    branch=deployment.branch,
+                    project_id=str(project.id)
+                )
                 deployment.commit_sha = commit_sha
                 
                 # Building
                 deployment.status = DeploymentStatus.BUILDING
                 db.commit()
 
+                image_tag = f"bonk-{project.id}:deployment-{deployment.deployment_number}"
+                container_name = f"bonk-{project.id}-{deployment.deployment_number}"
+
                 image_tag = DockerService.build_image(
-                    project_name=project.name,
-                    commit_sha=commit_sha,
+                    repo_path=repo_path,
+                    image_tag=image_tag,
                     build_context=project.build_context,
                     dockerfile_path=project.dockerfile_path
                 )
@@ -114,15 +124,52 @@ class DeploymentService:
                 deployment.status = DeploymentStatus.STARTING
                 db.commit()
 
-                _ = DockerService.run_container(image_tag=image_tag)
+                _ = DockerService.run_container(
+                    image_tag=image_tag,
+                    container_name=container_name
+                )
 
-                # Healthy/Running (Simulated health check pass)
+                # Health Check
+                if project.health_check_path:
+                    # Give it a tiny bit of time to register ports
+                    time.sleep(2)
+                    ports = DockerService.get_container_ports(container_name)
+                    if not ports:
+                        DockerService.stop_and_remove_container(container_name)
+                        raise Exception("Container exposes no ports for health check")
+                    
+                    host_port = list(ports.values())[0]
+                    health_url = f"http://127.0.0.1:{host_port}{project.health_check_path}"
+                    
+                    is_healthy = False
+                    for _ in range(30):
+                        try:
+                            r = httpx.get(health_url, timeout=2.0)
+                            if r.status_code == 200:
+                                is_healthy = True
+                                break
+                        except httpx.RequestError:
+                            pass
+                        time.sleep(1)
+                        
+                    if not is_healthy:
+                        DockerService.stop_and_remove_container(container_name)
+                        raise Exception("Health check failed or timed out")
+
+                # Healthy/Running
                 deployment.status = DeploymentStatus.RUNNING
                 deployment.finished_at = func.now()
                 
                 project.active_deployment_id = deployment.id
-
                 db.commit()
+
+                # Cleanup previous container if it exists
+                if old_active_deployment_id and old_active_deployment_id != deployment.id:
+                    old_deployment = db.get(Deployment, old_active_deployment_id)
+                    if old_deployment:
+                        old_container_name = f"bonk-{project.id}-{old_deployment.deployment_number}"
+                        DockerService.stop_and_remove_container(old_container_name)
+
             except Exception as e:
                 db.rollback()
                 deployment = db.get(Deployment, deployment_id)
