@@ -8,6 +8,11 @@ from app.schemas.auth import (
     TokenResponse,
     UserResponse,
 )
+from app.schemas.project import (
+    ProjectCreate,
+    ProjectResponse,
+    ProjectUpdate,
+)
 
 __all__ = [
     "LoginRequest",
@@ -16,4 +21,7 @@ __all__ = [
     "RegisterRequest",
     "TokenResponse",
     "UserResponse",
+    "ProjectCreate",
+    "ProjectResponse",
+    "ProjectUpdate",
 ]
