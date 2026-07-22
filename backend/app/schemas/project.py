@@ -46,6 +46,7 @@ class ProjectUpdate(BaseModel):
 class ProjectResponse(ProjectBase):
     id: UUID
     owner_id: UUID
+    active_deployment_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 

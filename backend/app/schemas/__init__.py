@@ -13,6 +13,10 @@ from app.schemas.project import (
     ProjectResponse,
     ProjectUpdate,
 )
+from app.schemas.deployment import (
+    DeploymentCreate,
+    DeploymentResponse,
+)
 
 __all__ = [
     "LoginRequest",
@@ -24,4 +28,6 @@ __all__ = [
     "ProjectCreate",
     "ProjectResponse",
     "ProjectUpdate",
+    "DeploymentCreate",
+    "DeploymentResponse",
 ]

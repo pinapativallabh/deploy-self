@@ -10,6 +10,7 @@ Status will all belong to a Project.
 
 import uuid
 from datetime import datetime
+from typing import List
 
 from sqlalchemy import (
     DateTime,
@@ -89,6 +90,12 @@ class Project(Base):
         server_default="/health",
     )
 
+    active_deployment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("deployments.id", ondelete="SET NULL", use_alter=True, name="fk_active_deployment"),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -104,6 +111,19 @@ class Project(Base):
 
     owner: Mapped["User"] = relationship(
         back_populates="projects",
+    )
+
+    deployments: Mapped[List["Deployment"]] = relationship(
+        "Deployment",
+        back_populates="project",
+        foreign_keys="[Deployment.project_id]",
+        cascade="all, delete-orphan",
+    )
+
+    active_deployment: Mapped["Deployment"] = relationship(
+        "Deployment",
+        foreign_keys=[active_deployment_id],
+        post_update=True,
     )
 
     def __repr__(self) -> str:

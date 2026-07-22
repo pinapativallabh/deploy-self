@@ -7,7 +7,10 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
+from app.schemas.deployment import DeploymentCreate, DeploymentResponse
 from app.services.project_service import ProjectService
+from app.services.deployment_service import DeploymentService
+from fastapi import BackgroundTasks
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -93,3 +96,68 @@ def delete_project(
     Delete a project.
     """
     ProjectService.delete_project(db=db, user=current_user, project_id=project_id)
+
+
+@router.post(
+    "/{project_id}/deployments",
+    response_model=DeploymentResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger a deployment",
+)
+def trigger_deployment(
+    project_id: uuid.UUID,
+    deployment_in: DeploymentCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DeploymentResponse:
+    """
+    Trigger a new deployment for a project.
+    Executes asynchronously.
+    """
+    deployment = DeploymentService.trigger_deployment(
+        db=db, user=current_user, project_id=project_id, deployment_in=deployment_in
+    )
+    
+    # Run the orchestrator in the background
+    background_tasks.add_task(
+        DeploymentService.execute_deployment,
+        deployment_id=deployment.id
+    )
+    
+    return deployment
+
+
+@router.get(
+    "/{project_id}/deployments",
+    response_model=List[DeploymentResponse],
+    summary="List deployments",
+)
+def list_deployments(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> List[DeploymentResponse]:
+    """
+    Retrieve all deployments for a project.
+    """
+    return DeploymentService.get_deployments(db=db, user=current_user, project_id=project_id)
+
+
+@router.get(
+    "/{project_id}/deployments/{deployment_id}",
+    response_model=DeploymentResponse,
+    summary="Get deployment",
+)
+def get_deployment(
+    project_id: uuid.UUID,
+    deployment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DeploymentResponse:
+    """
+    Retrieve a specific deployment.
+    """
+    return DeploymentService.get_deployment(
+        db=db, user=current_user, project_id=project_id, deployment_id=deployment_id
+    )

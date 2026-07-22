@@ -10,8 +10,10 @@ Every new model MUST be imported in this file or Alembic will not detect it.
 
 from .user import User
 from .project import Project
+from .deployment import Deployment
 
 __all__ = [
     "User",
     "Project",
+    "Deployment",
 ]
