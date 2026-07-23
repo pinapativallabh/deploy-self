@@ -109,5 +109,15 @@ class Deployment(Base):
         foreign_keys=[project_id],
     )
 
+    @property
+    def is_active(self) -> bool:
+        return self.project.active_deployment_id == self.id if self.project else False
+
+    @property
+    def duration(self) -> float | None:
+        if self.started_at and self.finished_at:
+            return (self.finished_at - self.started_at).total_seconds()
+        return None
+
     def __repr__(self) -> str:
         return f"<Deployment #{self.deployment_number} {self.id}>"

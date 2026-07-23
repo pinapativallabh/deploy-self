@@ -131,6 +131,39 @@ def trigger_deployment(
     return deployment
 
 
+@router.post(
+    "/{project_id}/redeploy",
+    response_model=DeploymentResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Redeploy active deployment",
+)
+def redeploy(
+    project_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DeploymentResponse:
+    deployment = DeploymentService.redeploy(db, current_user, project_id)
+    background_tasks.add_task(DeploymentService.execute_deployment, deployment_id=deployment.id)
+    return deployment
+
+@router.post(
+    "/{project_id}/rollback/{deployment_id}",
+    response_model=DeploymentResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Rollback to a previous deployment",
+)
+def rollback(
+    project_id: uuid.UUID,
+    deployment_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DeploymentResponse:
+    deployment = DeploymentService.rollback(db, current_user, project_id, deployment_id)
+    background_tasks.add_task(DeploymentService.execute_deployment, deployment_id=deployment.id)
+    return deployment
+
 @router.get(
     "/{project_id}/deployments",
     response_model=List[DeploymentResponse],

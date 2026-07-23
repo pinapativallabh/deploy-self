@@ -76,6 +76,68 @@ class DeploymentService:
         return deployment
 
     @staticmethod
+    def redeploy(db: Session, user: User, project_id: uuid.UUID) -> Deployment:
+        project = ProjectService.get_project(db, user, project_id)
+        if not project.active_deployment_id:
+            raise HTTPException(status_code=400, detail="No active deployment to redeploy")
+        
+        active_deployment = db.get(Deployment, project.active_deployment_id)
+        if not active_deployment:
+            raise HTTPException(status_code=400, detail="Active deployment not found")
+
+        return DeploymentService.trigger_deployment(
+            db, user, project_id, DeploymentCreate(branch=active_deployment.branch)
+        )
+
+    @staticmethod
+    def rollback(db: Session, user: User, project_id: uuid.UUID, deployment_id: uuid.UUID) -> Deployment:
+        project = ProjectService.get_project(db, user, project_id)
+        target_deployment = db.get(Deployment, deployment_id)
+        
+        if not target_deployment or target_deployment.project_id != project.id:
+            raise HTTPException(status_code=404, detail="Target deployment not found")
+            
+        if target_deployment.status not in [DeploymentStatus.RUNNING]:
+            # Assuming RUNNING is the state for a completed/successful deployment
+            # We also might want to check if it has a commit_sha
+            if not target_deployment.commit_sha:
+                raise HTTPException(status_code=400, detail="Target deployment does not have a commit SHA")
+
+        # Cancel pending/building deployments for this project
+        db.execute(
+            update(Deployment)
+            .where(
+                Deployment.project_id == project.id,
+                Deployment.status.in_([DeploymentStatus.PENDING, DeploymentStatus.CLONING, DeploymentStatus.BUILDING])
+            )
+            .values(
+                status=DeploymentStatus.CANCELED,
+                finished_at=func.now()
+            )
+        )
+        db.commit()
+
+        # Get next deployment number
+        max_num = db.scalar(
+            select(func.max(Deployment.deployment_number))
+            .where(Deployment.project_id == project.id)
+        )
+        next_num = (max_num or 0) + 1
+
+        deployment = Deployment(
+            project_id=project.id,
+            deployment_number=next_num,
+            status=DeploymentStatus.PENDING,
+            branch=target_deployment.branch,
+            commit_sha=target_deployment.commit_sha
+        )
+        db.add(deployment)
+        db.commit()
+        db.refresh(deployment)
+
+        return deployment
+
+    @staticmethod
     def execute_deployment(deployment_id: uuid.UUID) -> None:
         """
         Background worker method to orchestrate the deployment pipeline.
@@ -102,7 +164,8 @@ class DeploymentService:
                 repo_path, commit_sha = GitService.clone_repo(
                     repository_url=project.repository_url,
                     branch=deployment.branch,
-                    project_id=str(project.id)
+                    project_id=str(project.id),
+                    commit_sha=deployment.commit_sha
                 )
                 deployment.commit_sha = commit_sha
                 

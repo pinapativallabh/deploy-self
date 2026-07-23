@@ -25,5 +25,7 @@ class DeploymentResponse(BaseModel):
     finished_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    is_active: bool = False
+    duration: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True)
