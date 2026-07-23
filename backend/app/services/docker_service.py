@@ -10,6 +10,10 @@ logger = logging.getLogger(__name__)
 class DockerServiceException(Exception):
     pass
 
+class DockerServiceBuildException(DockerServiceException):
+    def __init__(self, message: str, logs: str):
+        super().__init__(message)
+        self.logs = logs
 
 class DockerService:
     @staticmethod
@@ -21,10 +25,10 @@ class DockerService:
             raise DockerServiceException(f"Failed to connect to Docker daemon: {e}")
 
     @staticmethod
-    def build_image(repo_path: str, image_tag: str, build_context: str = ".", dockerfile_path: str = "Dockerfile") -> str:
+    def build_image(repo_path: str, image_tag: str, build_context: str = ".", dockerfile_path: str = "Dockerfile") -> tuple[str, str]:
         """
         Builds a Docker image from a local repository.
-        Returns the image tag.
+        Returns the (image_tag, build_logs).
         """
         client = DockerService._get_client()
         logger.info(f"Building docker image {image_tag} at {repo_path}")
@@ -42,12 +46,15 @@ class DockerService:
             )
             
             # Log the build process for debug
+            build_logs_str = ""
             for chunk in build_logs:
                 if 'stream' in chunk:
-                    logger.debug(chunk['stream'].strip())
+                    line = chunk['stream']
+                    logger.debug(line.strip())
+                    build_logs_str += line
 
             logger.info(f"Successfully built image {image_tag}")
-            return image_tag
+            return image_tag, build_logs_str
             
         except BuildError as e:
             # Build error contains the build logs
@@ -58,7 +65,7 @@ class DockerService:
                 elif 'error' in chunk:
                     error_log += chunk['error']
             logger.error(f"Failed to build image {image_tag}: {error_log}")
-            raise DockerServiceException(f"Docker build failed: {error_log}")
+            raise DockerServiceBuildException(f"Docker build failed", logs=error_log)
         except APIError as e:
             logger.error(f"Docker API error during build: {e}")
             raise DockerServiceException(f"Docker API error during build: {e}")
@@ -188,17 +195,36 @@ class DockerService:
             raise DockerServiceException(f"Failed to remove container: {e}")
 
     @staticmethod
-    def get_container_logs(container_name_or_id: str, tail: int = 100) -> str:
+    def get_container_logs(container_name_or_id: str, tail: str | int = "all", follow: bool = False, timestamps: bool = False):
+        """Get logs with various options."""
         client = DockerService._get_client()
         try:
             container = client.containers.get(container_name_or_id)
-            logs = container.logs(tail=tail, stdout=True, stderr=True)
-            return logs.decode('utf-8', errors='replace')
+            return container.logs(tail=tail, stream=follow, timestamps=timestamps, stdout=True, stderr=True)
         except docker.errors.NotFound:
             raise DockerServiceException(f"Container {container_name_or_id} not found")
         except APIError as e:
             logger.error(f"Failed to get container logs for {container_name_or_id}: {e}")
             raise DockerServiceException(f"Failed to get logs: {e}")
+
+    @staticmethod
+    def tail_logs(container_name_or_id: str, tail: int = 100, timestamps: bool = False) -> str:
+        logs_bytes = DockerService.get_container_logs(container_name_or_id, tail=tail, follow=False, timestamps=timestamps)
+        return logs_bytes.decode('utf-8', errors='replace')
+
+    @staticmethod
+    def stream_logs(container_name_or_id: str, tail: str | int = "all", timestamps: bool = False):
+        # Alias for follow logs
+        return DockerService.get_container_logs(container_name_or_id, tail=tail, follow=True, timestamps=timestamps)
+
+    @staticmethod
+    def follow_logs(container_name_or_id: str, tail: str | int = 10, timestamps: bool = False):
+        return DockerService.get_container_logs(container_name_or_id, tail=tail, follow=True, timestamps=timestamps)
+
+    @staticmethod
+    def latest_logs(container_name_or_id: str, timestamps: bool = False) -> str:
+        # Latest logs might mean tail 100 or something
+        return DockerService.tail_logs(container_name_or_id, tail=100, timestamps=timestamps)
 
     @staticmethod
     def inspect_container(container_name_or_id: str) -> dict:

@@ -79,13 +79,62 @@ class RuntimeService:
             raise HTTPException(status_code=500, detail=str(e))
 
     @staticmethod
-    def get_logs(db: Session, project_id: uuid.UUID) -> dict:
-        container_name = RuntimeService._get_active_container_name(db, project_id)
+    def _get_target_deployment(db: Session, project_id: uuid.UUID, deployment_id: Optional[uuid.UUID] = None):
+        from app.models.deployment import Deployment
+        project = db.get(Project, project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        if deployment_id:
+            deployment = db.get(Deployment, deployment_id)
+            if not deployment or deployment.project_id != project.id:
+                raise HTTPException(status_code=404, detail="Deployment not found")
+        else:
+            deployment = project.active_deployment
+            if not deployment:
+                raise HTTPException(status_code=404, detail="Project has no active deployment")
+        return project, deployment
+
+    @staticmethod
+    def _get_build_logs(deployment) -> str:
+        build_logs = ""
+        if deployment.logs_path:
+            import os
+            if os.path.exists(deployment.logs_path):
+                with open(deployment.logs_path, "r", encoding="utf-8") as f:
+                    build_logs = f.read()
+        return build_logs
+
+    @staticmethod
+    def get_logs(db: Session, project_id: uuid.UUID, deployment_id: Optional[uuid.UUID] = None, tail: str | int = "all", timestamps: bool = False) -> dict:
+        project, deployment = RuntimeService._get_target_deployment(db, project_id, deployment_id)
+        build_logs = RuntimeService._get_build_logs(deployment)
+        container_name = f"bonk-{project.id}-{deployment.deployment_number}"
+        
+        runtime_logs = ""
         try:
-            logs = DockerService.get_container_logs(container_name)
-            return {"logs": logs}
+            runtime_logs = DockerService.tail_logs(container_name, tail=tail, timestamps=timestamps)
+        except DockerServiceException:
+            pass
+
+        return {
+            "build_logs": build_logs,
+            "runtime_logs": runtime_logs
+        }
+
+    @staticmethod
+    def stream_logs(db: Session, project_id: uuid.UUID, deployment_id: Optional[uuid.UUID] = None, tail: str | int = "all", timestamps: bool = False):
+        project, deployment = RuntimeService._get_target_deployment(db, project_id, deployment_id)
+        container_name = f"bonk-{project.id}-{deployment.deployment_number}"
+        
+        try:
+            return DockerService.stream_logs(container_name, tail=tail, timestamps=timestamps)
         except DockerServiceException as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+    @staticmethod
+    def tail_logs(db: Session, project_id: uuid.UUID, deployment_id: Optional[uuid.UUID] = None, tail: int = 100, timestamps: bool = False) -> dict:
+        return RuntimeService.get_logs(db, project_id, deployment_id, tail=tail, timestamps=timestamps)
 
     @staticmethod
     def inspect(db: Session, project_id: uuid.UUID) -> dict:

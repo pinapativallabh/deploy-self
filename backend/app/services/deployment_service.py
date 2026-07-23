@@ -113,12 +113,29 @@ class DeploymentService:
                 image_tag = f"bonk-{project.id}:deployment-{deployment.deployment_number}"
                 container_name = f"bonk-{project.id}-{deployment.deployment_number}"
 
-                image_tag = DockerService.build_image(
-                    repo_path=repo_path,
-                    image_tag=image_tag,
-                    build_context=project.build_context,
-                    dockerfile_path=project.dockerfile_path
-                )
+                import os
+                logs_dir = os.path.join("storage", "logs", "deployments")
+                os.makedirs(logs_dir, exist_ok=True)
+                log_file_path = os.path.join(logs_dir, f"{deployment.id}.log")
+
+                from app.services.docker_service import DockerServiceBuildException
+                try:
+                    image_tag, build_logs = DockerService.build_image(
+                        repo_path=repo_path,
+                        image_tag=image_tag,
+                        build_context=project.build_context,
+                        dockerfile_path=project.dockerfile_path
+                    )
+                    with open(log_file_path, "w", encoding="utf-8") as f:
+                        f.write(build_logs)
+                    deployment.logs_path = log_file_path
+                    db.commit()
+                except DockerServiceBuildException as e:
+                    with open(log_file_path, "w", encoding="utf-8") as f:
+                        f.write(e.logs)
+                    deployment.logs_path = log_file_path
+                    db.commit()
+                    raise e
 
                 # Starting
                 deployment.status = DeploymentStatus.STARTING
@@ -139,7 +156,7 @@ class DeploymentService:
                     time.sleep(2)
                     ports = DockerService.get_container_ports(container_name)
                     if not ports:
-                        DockerService.stop_and_remove_container(container_name)
+                        DockerService.stop_container(container_name)
                         raise Exception("Container exposes no ports for health check")
                     
                     host_port = list(ports.values())[0]
@@ -157,7 +174,7 @@ class DeploymentService:
                         time.sleep(1)
                         
                     if not is_healthy:
-                        DockerService.stop_and_remove_container(container_name)
+                        DockerService.stop_container(container_name)
                         raise Exception("Health check failed or timed out")
 
                 # Healthy/Running

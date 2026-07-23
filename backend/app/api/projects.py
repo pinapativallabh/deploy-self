@@ -180,16 +180,31 @@ def get_runtime_status(
     return {"status": status["status"], "inspect": inspect}
 
 
+from fastapi import Query
+from fastapi.responses import StreamingResponse
+
 @router.get("/{project_id}/logs")
 def get_runtime_logs(
     project_id: uuid.UUID,
+    deployment_id: uuid.UUID = Query(None, description="Optional deployment ID"),
+    tail: str = Query("all", description="Number of lines to show from the end of the logs"),
+    follow: bool = Query(False, description="Stream the logs"),
+    timestamps: bool = Query(False, description="Show timestamps"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     project = db.get(Project, project_id)
     if not project or project.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Project not found")
-    return RuntimeService.get_logs(db, project_id)
+        
+    if follow:
+        iterator = RuntimeService.stream_logs(db, project_id, deployment_id, tail=tail, timestamps=timestamps)
+        def generate():
+            for chunk in iterator:
+                yield chunk
+        return StreamingResponse(generate(), media_type="text/plain")
+    else:
+        return RuntimeService.get_logs(db, project_id, deployment_id, tail=tail, timestamps=timestamps)
 
 
 @router.post("/{project_id}/restart")
