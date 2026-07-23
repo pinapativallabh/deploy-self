@@ -17,6 +17,11 @@ from app.schemas.deployment import (
     DeploymentCreate,
     DeploymentResponse,
 )
+from app.schemas.environment_variable import (
+    EnvironmentVariableCreate,
+    EnvironmentVariableUpdate,
+    EnvironmentVariableResponse,
+)
 
 __all__ = [
     "LoginRequest",
@@ -30,4 +35,7 @@ __all__ = [
     "ProjectUpdate",
     "DeploymentCreate",
     "DeploymentResponse",
+    "EnvironmentVariableCreate",
+    "EnvironmentVariableUpdate",
+    "EnvironmentVariableResponse",
 ]

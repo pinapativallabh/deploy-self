@@ -124,9 +124,13 @@ class DeploymentService:
                 deployment.status = DeploymentStatus.STARTING
                 db.commit()
 
+                from app.services.environment_service import EnvironmentService
+                env_vars = EnvironmentService.get_deployment_variables(db, project.id)
+
                 _ = DockerService.run_container(
                     image_tag=image_tag,
-                    container_name=container_name
+                    container_name=container_name,
+                    env_vars=env_vars
                 )
 
                 # Health Check

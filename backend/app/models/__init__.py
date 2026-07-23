@@ -11,9 +11,11 @@ Every new model MUST be imported in this file or Alembic will not detect it.
 from .user import User
 from .project import Project
 from .deployment import Deployment
+from .environment_variable import EnvironmentVariable
 
 __all__ = [
     "User",
     "Project",
     "Deployment",
+    "EnvironmentVariable",
 ]

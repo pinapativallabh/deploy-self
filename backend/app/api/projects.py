@@ -10,9 +10,11 @@ from app.models.user import User
 from app.models.project import Project
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.schemas.deployment import DeploymentCreate, DeploymentResponse
+from app.schemas.environment_variable import EnvironmentVariableCreate, EnvironmentVariableResponse, EnvironmentVariableUpdate
 from app.services.project_service import ProjectService
 from app.services.deployment_service import DeploymentService
 from app.services.runtime_service import RuntimeService
+from app.services.environment_service import EnvironmentService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -236,3 +238,60 @@ def remove_runtime(
     if not project or project.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Project not found")
     return RuntimeService.remove(db, project_id)
+
+
+@router.post(
+    "/{project_id}/environment",
+    response_model=EnvironmentVariableResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create environment variable",
+)
+def create_environment_variable(
+    project_id: uuid.UUID,
+    variable_in: EnvironmentVariableCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> EnvironmentVariableResponse:
+    return EnvironmentService.create_variable(db, current_user, project_id, variable_in)
+
+
+@router.get(
+    "/{project_id}/environment",
+    response_model=List[EnvironmentVariableResponse],
+    summary="List environment variables",
+)
+def list_environment_variables(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> List[EnvironmentVariableResponse]:
+    return EnvironmentService.get_variables(db, current_user, project_id)
+
+
+@router.patch(
+    "/{project_id}/environment/{variable_id}",
+    response_model=EnvironmentVariableResponse,
+    summary="Update environment variable",
+)
+def update_environment_variable(
+    project_id: uuid.UUID,
+    variable_id: uuid.UUID,
+    variable_in: EnvironmentVariableUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> EnvironmentVariableResponse:
+    return EnvironmentService.update_variable(db, current_user, project_id, variable_id, variable_in)
+
+
+@router.delete(
+    "/{project_id}/environment/{variable_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete environment variable",
+)
+def delete_environment_variable(
+    project_id: uuid.UUID,
+    variable_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    EnvironmentService.delete_variable(db, current_user, project_id, variable_id)

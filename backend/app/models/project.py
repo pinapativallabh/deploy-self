@@ -120,6 +120,12 @@ class Project(Base):
         cascade="all, delete-orphan",
     )
 
+    environment_variables: Mapped[List["EnvironmentVariable"]] = relationship(
+        "EnvironmentVariable",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
+
     active_deployment: Mapped["Deployment"] = relationship(
         "Deployment",
         foreign_keys=[active_deployment_id],
