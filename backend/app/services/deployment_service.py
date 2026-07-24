@@ -5,6 +5,7 @@ from typing import Sequence
 from fastapi import HTTPException, status
 from sqlalchemy import select, func, update
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.models.deployment import Deployment, DeploymentStatus
 from app.models.project import Project
@@ -45,8 +46,12 @@ class DeploymentService:
         return deployment
 
     @staticmethod
-    def trigger_deployment(db: Session, user: User, project_id: uuid.UUID, deployment_in: DeploymentCreate) -> Deployment:
+    def trigger_deployment(db: Session, user: User, project_id: uuid.UUID, deployment_in: DeploymentCreate, commit_sha: str = None) -> Deployment:
+        # Check permissions first
         project = ProjectService.get_project(db, user, project_id)
+
+        # Lock project to prevent race condition on deployment_number
+        project = db.scalar(select(Project).where(Project.id == project_id).with_for_update())
 
         # Cancel pending/building deployments for this project
         db.execute(
@@ -60,7 +65,7 @@ class DeploymentService:
                 finished_at=func.now()
             )
         )
-        db.commit()
+        # Note: We do not commit here to ensure the cancellation and new deployment are atomic
 
         # Get next deployment number
         max_num = db.scalar(
@@ -76,10 +81,19 @@ class DeploymentService:
             deployment_number=next_num,
             status=DeploymentStatus.PENDING,
             branch=branch,
+            commit_sha=commit_sha,
         )
         db.add(deployment)
-        db.commit()
-        db.refresh(deployment)
+        
+        try:
+            db.commit()
+            db.refresh(deployment)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A deployment is already being triggered for this project",
+            )
 
         return deployment
 
@@ -105,43 +119,12 @@ class DeploymentService:
         if not target_deployment or target_deployment.project_id != project.id:
             raise HTTPException(status_code=404, detail="Target deployment not found")
             
-        if target_deployment.status not in [DeploymentStatus.RUNNING]:
-            if not target_deployment.commit_sha:
-                raise HTTPException(status_code=400, detail="Target deployment does not have a commit SHA")
+        if target_deployment.status not in [DeploymentStatus.RUNNING, DeploymentStatus.ARCHIVED]:
+            raise HTTPException(status_code=400, detail="Can only rollback to successful deployments")
 
-        # Cancel pending/building deployments for this project
-        db.execute(
-            update(Deployment)
-            .where(
-                Deployment.project_id == project.id,
-                Deployment.status.in_([DeploymentStatus.PENDING, DeploymentStatus.CLONING, DeploymentStatus.BUILDING])
-            )
-            .values(
-                status=DeploymentStatus.CANCELED,
-                finished_at=func.now()
-            )
+        return DeploymentService.trigger_deployment(
+            db, user, project_id, DeploymentCreate(branch=target_deployment.branch), target_deployment.commit_sha
         )
-        db.commit()
-
-        # Get next deployment number
-        max_num = db.scalar(
-            select(func.max(Deployment.deployment_number))
-            .where(Deployment.project_id == project.id)
-        )
-        next_num = (max_num or 0) + 1
-
-        deployment = Deployment(
-            project_id=project.id,
-            deployment_number=next_num,
-            status=DeploymentStatus.PENDING,
-            branch=target_deployment.branch,
-            commit_sha=target_deployment.commit_sha
-        )
-        db.add(deployment)
-        db.commit()
-        db.refresh(deployment)
-
-        return deployment
 
     @staticmethod
     def cleanup_old_deployments(db: Session, project_id: uuid.UUID, active_deployment_id: uuid.UUID = None):
@@ -161,6 +144,11 @@ class DeploymentService:
             for dep_to_remove in successful_deployments[settings.CLEANUP_RETENTION:]:
                 if active_deployment_id and dep_to_remove.id == active_deployment_id:
                     continue
+                
+                # Mark as archived
+                dep_to_remove.status = DeploymentStatus.ARCHIVED
+                db.commit()
+
                 # Remove container if still somehow exists (though should be stopped)
                 old_container_name = f"bonk-{project_id}-{dep_to_remove.deployment_number}"
                 DockerService.stop_and_remove_container(old_container_name)

@@ -14,3 +14,4 @@ pwdlib[argon2]>=0.2
 python-multipart>=0.0.6
 GitPython>=3.1.0
 docker>=7.0.0
+arq>=0.25

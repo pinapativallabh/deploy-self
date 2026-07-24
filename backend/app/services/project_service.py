@@ -4,6 +4,7 @@ from typing import Sequence
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.models.project import Project
 from app.models.user import User
@@ -47,8 +48,15 @@ class ProjectService:
         )
         
         db.add(project)
-        db.commit()
-        db.refresh(project)
+        try:
+            db.commit()
+            db.refresh(project)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Project with name '{project_in.name}' already exists for this user.",
+            )
         return project
 
     @staticmethod
@@ -80,8 +88,15 @@ class ProjectService:
         for field, value in update_data.items():
             setattr(project, field, value)
             
-        db.commit()
-        db.refresh(project)
+        try:
+            db.commit()
+            db.refresh(project)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Project with this name already exists for this user.",
+            )
         return project
 
     @staticmethod

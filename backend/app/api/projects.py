@@ -3,9 +3,9 @@ from typing import List
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
-from fastapi import BackgroundTasks
+from arq.connections import ArqRedis
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_current_user, get_db, get_arq_pool
 from app.models.user import User
 from app.models.project import Project
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
@@ -108,10 +108,10 @@ def delete_project(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Trigger a deployment",
 )
-def trigger_deployment(
+async def trigger_deployment(
     project_id: uuid.UUID,
     deployment_in: DeploymentCreate,
-    background_tasks: BackgroundTasks,
+    arq_pool: ArqRedis = Depends(get_arq_pool),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DeploymentResponse:
@@ -123,10 +123,7 @@ def trigger_deployment(
         db=db, user=current_user, project_id=project_id, deployment_in=deployment_in
     )
     
-    background_tasks.add_task(
-        DeploymentService.execute_deployment,
-        deployment_id=deployment.id
-    )
+    await arq_pool.enqueue_job("execute_deployment", deployment.id)
     
     return deployment
 
@@ -137,14 +134,14 @@ def trigger_deployment(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Redeploy active deployment",
 )
-def redeploy(
+async def redeploy(
     project_id: uuid.UUID,
-    background_tasks: BackgroundTasks,
+    arq_pool: ArqRedis = Depends(get_arq_pool),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DeploymentResponse:
     deployment = DeploymentService.redeploy(db, current_user, project_id)
-    background_tasks.add_task(DeploymentService.execute_deployment, deployment_id=deployment.id)
+    await arq_pool.enqueue_job("execute_deployment", deployment.id)
     return deployment
 
 @router.post(
@@ -153,15 +150,15 @@ def redeploy(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Rollback to a previous deployment",
 )
-def rollback(
+async def rollback(
     project_id: uuid.UUID,
     deployment_id: uuid.UUID,
-    background_tasks: BackgroundTasks,
+    arq_pool: ArqRedis = Depends(get_arq_pool),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DeploymentResponse:
     deployment = DeploymentService.rollback(db, current_user, project_id, deployment_id)
-    background_tasks.add_task(DeploymentService.execute_deployment, deployment_id=deployment.id)
+    await arq_pool.enqueue_job("execute_deployment", deployment.id)
     return deployment
 
 @router.get(

@@ -29,6 +29,9 @@ from app.api.auth import router as auth_router
 from app.api.users import router as users_router
 from app.api.projects import router as projects_router
 
+from arq import create_pool
+from arq.connections import RedisSettings
+
 setup_logging()
 logger = logging.getLogger("app.main")
 
@@ -56,6 +59,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.redis = redis_client
     await verify_redis(redis_client)
 
+    # --- ARQ ---
+    arq_redis_settings = RedisSettings(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        database=settings.REDIS_DB,
+    )
+    app.state.arq_pool = await create_pool(arq_redis_settings)
+
     logger.info("%s is ready", settings.APP_NAME)
 
     yield
@@ -63,6 +74,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # --- Shutdown ---
     logger.info("Shutting down %s...", settings.APP_NAME)
     await close_redis(app.state.redis)
+    if hasattr(app.state, "arq_pool"):
+        await app.state.arq_pool.close()
     logger.info("Shutdown complete")
 
 
@@ -79,7 +92,7 @@ register_exception_handlers(app)
 # --- Middleware ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict in production via configuration
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

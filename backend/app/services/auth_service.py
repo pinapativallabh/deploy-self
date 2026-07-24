@@ -36,6 +36,7 @@ import jwt
 from redis.asyncio import Redis
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.core.security import (
     create_token_pair,
@@ -108,8 +109,12 @@ def register_user(db: Session, data: RegisterRequest) -> User:
         password_hash=hash_password(data.password),
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
+    try:
+        db.commit()
+        db.refresh(user)
+    except IntegrityError:
+        db.rollback()
+        raise AuthError("A user with this email or username already exists.", status_code=409)
 
     logger.info("User registered: %s (%s)", user.username, user.id)
     return user

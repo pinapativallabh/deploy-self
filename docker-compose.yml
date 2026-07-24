@@ -40,6 +40,10 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - repos_data:/app/storage/repos
+      - logs_data:/app/storage/logs
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,15 +64,25 @@ services:
 
   worker:
     build:
-      context: ./worker
+      context: ./backend
       dockerfile: Dockerfile
     container_name: bonk-worker
+    command: ["arq", "app.worker.WorkerSettings"]
     env_file:
-      - ./worker/.env
+      - ./backend/.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - repos_data:/app/storage/repos
+      - logs_data:/app/storage/logs
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: always
 
 volumes:
   postgres_data:
   redis_data:
+  repos_data:
+  logs_data:

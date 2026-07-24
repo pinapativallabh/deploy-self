@@ -232,10 +232,16 @@ class DockerService:
 
     @staticmethod
     def inspect_container(container_name_or_id: str) -> dict:
+        import copy
         client = DockerService._get_client()
         try:
             container = client.containers.get(container_name_or_id)
-            return container.attrs
+            attrs = copy.deepcopy(container.attrs)
+            if "Config" in attrs and "Env" in attrs["Config"]:
+                attrs["Config"]["Env"] = ["<REDACTED>"]
+            if "ContainerConfig" in attrs and "Env" in attrs["ContainerConfig"]:
+                attrs["ContainerConfig"]["Env"] = ["<REDACTED>"]
+            return attrs
         except docker.errors.NotFound:
             raise DockerServiceException(f"Container {container_name_or_id} not found")
         except APIError as e:

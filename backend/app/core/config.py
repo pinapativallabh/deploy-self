@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     BUILD_TIMEOUT: int = 600
     REPO_CACHE_PATH: str = "repos"
     CLEANUP_RETENTION: int = 5
+    CORS_ORIGINS: list[str] = ["*"]
 
     # --- Redis ---
     REDIS_HOST: str = "localhost"

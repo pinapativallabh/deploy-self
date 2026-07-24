@@ -29,6 +29,7 @@ from fastapi.security import OAuth2PasswordBearer
 from redis.asyncio import Redis
 from sqlalchemy.orm import Session
 from starlette.requests import Request
+from arq.connections import ArqRedis
 
 from app.db.session import SessionLocal
 
@@ -77,6 +78,11 @@ def get_redis(request: Request) -> Redis:
     return request.app.state.redis
 
 
+def get_arq_pool(request: Request) -> ArqRedis:
+    """Provide the ARQ redis pool from application state."""
+    return request.app.state.arq_pool
+
+
 def get_raw_token(token: str = Depends(oauth2_scheme)) -> str:
     """
     Extract the raw JWT string from the Authorization header.
@@ -118,3 +124,24 @@ async def get_current_user(
             detail=exc.detail,
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+class RateLimiter:
+    """
+    Rate limiting dependency using Redis.
+    """
+    def __init__(self, max_requests: int = 5, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+
+    async def __call__(self, request: Request, redis: Redis = Depends(get_redis)):
+        client_ip = request.client.host if request.client else "unknown"
+        path = request.url.path
+        key = f"rate_limit:{path}:{client_ip}"
+        
+        current = await redis.incr(key)
+        if current == 1:
+            await redis.expire(key, self.window_seconds)
+            
+        if current > self.max_requests:
+            raise HTTPException(status_code=429, detail="Too Many Requests")

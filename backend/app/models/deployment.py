@@ -10,6 +10,7 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -25,10 +26,19 @@ class DeploymentStatus(str, enum.Enum):
     RUNNING = "RUNNING"
     FAILED = "FAILED"
     CANCELED = "CANCELED"
+    ARCHIVED = "ARCHIVED"
 
 
 class Deployment(Base):
     __tablename__ = "deployments"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "deployment_number",
+            name="uq_deployments_project_number",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
