@@ -27,7 +27,7 @@ export default function ProjectDetailsPage() {
       const [projData, depsData, envsData] = await Promise.all([
         apiClient<Project>(`/projects/${projectId}`),
         apiClient<Deployment[]>(`/projects/${projectId}/deployments`),
-        apiClient<EnvironmentVariable[]>(`/projects/${projectId}/env`)
+        apiClient<EnvironmentVariable[]>(`/projects/${projectId}/environment`)
       ]);
       setProject(projData);
       setDeployments(depsData);
@@ -68,7 +68,7 @@ export default function ProjectDetailsPage() {
   const handleRestart = async () => {
     setActionLoading(true);
     try {
-      await apiClient(`/projects/${projectId}/deployments/active/restart`, {
+      await apiClient(`/projects/${projectId}/restart`, {
         method: 'POST',
       });
       alert('Restart triggered successfully');
@@ -99,7 +99,7 @@ export default function ProjectDetailsPage() {
   const handleAddEnv = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await apiClient(`/projects/${projectId}/env`, {
+      await apiClient(`/projects/${projectId}/environment`, {
         method: 'POST',
         body: JSON.stringify(newEnv)
       });
@@ -110,9 +110,9 @@ export default function ProjectDetailsPage() {
     }
   };
 
-  const handleDeleteEnv = async (key: string) => {
+  const handleDeleteEnv = async (id: string) => {
     try {
-      await apiClient(`/projects/${projectId}/env/${key}`, {
+      await apiClient(`/projects/${projectId}/environment/${id}`, {
         method: 'DELETE'
       });
       await loadData();
@@ -328,10 +328,10 @@ export default function ProjectDetailsPage() {
                     </thead>
                     <tbody className="divide-y divide-neutral-800">
                       {envVars.map(env => (
-                        <tr key={env.key} className="hover:bg-neutral-800/30">
+                        <tr key={env.id} className="hover:bg-neutral-800/30">
                           <td className="px-4 py-3 font-mono text-neutral-300">{env.key}</td>
                           <td className="px-4 py-3">
-                            <button onClick={() => handleDeleteEnv(env.key)} className="text-neutral-500 hover:text-red-400 transition-colors">
+                            <button onClick={() => handleDeleteEnv(env.id)} className="text-neutral-500 hover:text-red-400 transition-colors">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </td>
