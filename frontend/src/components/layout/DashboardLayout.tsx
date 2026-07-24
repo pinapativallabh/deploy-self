@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from '@/hooks/use-auth';
-import { LayoutDashboard, LogOut, Package, Server, Settings } from 'lucide-react';
+import { LayoutDashboard, LogOut, Package, Server } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 

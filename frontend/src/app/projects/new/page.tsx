@@ -38,8 +38,12 @@ export default function NewProjectPage() {
         body: JSON.stringify(formData),
       });
       router.push(`/projects/${project.id}`);
-    } catch (err: any) {
-      setError(err.message || 'Failed to create project');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Failed to create project');
+      }
     } finally {
       setLoading(false);
     }

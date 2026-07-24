@@ -24,8 +24,12 @@ export default function LoginPage() {
         body: JSON.stringify({ login: loginId, password }),
       });
       await login(tokens);
-    } catch (err: any) {
-      setError(err.message || 'Failed to login');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Failed to login');
+      }
     } finally {
       setLoading(false);
     }

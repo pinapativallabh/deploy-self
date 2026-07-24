@@ -55,7 +55,7 @@ export default function ProjectsPage() {
           </div>
           <h3 className="text-2xl font-bold text-white mb-3">No projects found</h3>
           <p className="text-neutral-400 mb-8 max-w-md mx-auto leading-relaxed">
-            You haven't created any projects yet. Get started by creating your first project and deploying your application.
+            You haven&apos;t created any projects yet. Get started by creating your first project and deploying your application.
           </p>
           <Link 
             href="/projects/new"

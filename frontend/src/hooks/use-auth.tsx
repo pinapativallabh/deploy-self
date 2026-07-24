@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { User, TokenResponse } from '@/types';
 import { apiClient } from '@/lib/api/client';
@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
       if (!token) {
@@ -31,18 +31,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const userData = await apiClient<User>('/users/me');
       setUser(userData);
-    } catch (error) {
+    } catch {
       setUser(null);
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkAuth();
-  }, []);
+  }, [checkAuth]);
 
   useEffect(() => {
     if (!loading) {

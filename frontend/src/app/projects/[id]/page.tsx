@@ -3,10 +3,10 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { apiClient } from '@/lib/api/client';
 import { Project, Deployment, EnvironmentVariable } from '@/types';
-import { ArrowLeft, Rocket, Settings, RotateCcw, Play, RefreshCw, Terminal, Plus, Trash2, Check, X, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Rocket, Settings, RotateCcw, Play, RefreshCw, Terminal, Plus, Trash2, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function ProjectDetailsPage() {
@@ -22,7 +22,7 @@ export default function ProjectDetailsPage() {
   const [activeTab, setActiveTab] = useState<'deployments' | 'settings'>('deployments');
   const [newEnv, setNewEnv] = useState({ key: '', value: '' });
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [projData, depsData, envsData] = await Promise.all([
         apiClient<Project>(`/projects/${projectId}`),
@@ -37,9 +37,10 @@ export default function ProjectDetailsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
     // Poll for deployments every 5s if there are pending/building deployments
     const interval = setInterval(() => {
@@ -48,7 +49,7 @@ export default function ProjectDetailsPage() {
         .catch(console.error);
     }, 5000);
     return () => clearInterval(interval);
-  }, [projectId]);
+  }, [projectId, loadData]);
 
   const handleDeploy = async () => {
     setActionLoading(true);
@@ -229,7 +230,7 @@ export default function ProjectDetailsPage() {
           
           {deployments.length === 0 ? (
             <div className="p-12 text-center text-neutral-400">
-              No deployments yet. Click "Deploy Now" to start your first deployment.
+              No deployments yet. Click &quot;Deploy Now&quot; to start your first deployment.
             </div>
           ) : (
             <div className="divide-y divide-neutral-800/50">
