@@ -21,6 +21,20 @@ class ProjectBase(BaseModel):
             raise ValueError('health_check_path must start with "/"')
         return v
 
+    @field_validator("dockerfile_path", "build_context")
+    @classmethod
+    def prevent_path_traversal(cls, v: str) -> str:
+        if ".." in v or v.startswith("/"):
+            raise ValueError("Path traversal or absolute paths are not allowed")
+        return v
+
+    @field_validator("repository_url")
+    @classmethod
+    def validate_repository_url(cls, v: str) -> str:
+        if not (v.startswith("http://") or v.startswith("https://") or v.startswith("git@")):
+            raise ValueError("Repository URL must be a valid HTTP/HTTPS or SSH URL")
+        return v
+
 
 class ProjectCreate(ProjectBase):
     pass
@@ -40,6 +54,20 @@ class ProjectUpdate(BaseModel):
     def validate_health_check_path(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.startswith("/"):
             raise ValueError('health_check_path must start with "/"')
+        return v
+
+    @field_validator("dockerfile_path", "build_context")
+    @classmethod
+    def prevent_path_traversal(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and (".." in v or v.startswith("/")):
+            raise ValueError("Path traversal or absolute paths are not allowed")
+        return v
+
+    @field_validator("repository_url")
+    @classmethod
+    def validate_repository_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not (v.startswith("http://") or v.startswith("https://") or v.startswith("git@")):
+            raise ValueError("Repository URL must be a valid HTTP/HTTPS or SSH URL")
         return v
 
 

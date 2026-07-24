@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5433
 
+    # --- Application Settings ---
+    HEALTH_CHECK_TIMEOUT: int = 30
+    POLLING_INTERVAL: int = 1
+    BUILD_TIMEOUT: int = 600
+    REPO_CACHE_PATH: str = "repos"
+    CLEANUP_RETENTION: int = 5
+
     # --- Redis ---
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379

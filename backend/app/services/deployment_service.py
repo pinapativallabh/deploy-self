@@ -15,6 +15,14 @@ from app.services.docker_service import DockerService
 from app.services.project_service import ProjectService
 
 
+import time
+import httpx
+import logging
+from app.db.session import SessionLocal
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
 class DeploymentService:
     @staticmethod
     def get_deployments(db: Session, user: User, project_id: uuid.UUID) -> Sequence[Deployment]:
@@ -98,8 +106,6 @@ class DeploymentService:
             raise HTTPException(status_code=404, detail="Target deployment not found")
             
         if target_deployment.status not in [DeploymentStatus.RUNNING]:
-            # Assuming RUNNING is the state for a completed/successful deployment
-            # We also might want to check if it has a commit_sha
             if not target_deployment.commit_sha:
                 raise HTTPException(status_code=400, detail="Target deployment does not have a commit SHA")
 
@@ -138,18 +144,38 @@ class DeploymentService:
         return deployment
 
     @staticmethod
+    def cleanup_old_deployments(db: Session, project_id: uuid.UUID, active_deployment_id: uuid.UUID = None):
+        """Removes successful deployment artifacts beyond the retention limit."""
+        # Find all successful deployments ordered by created_at desc
+        stmt = (
+            select(Deployment)
+            .where(
+                Deployment.project_id == project_id,
+                Deployment.status == DeploymentStatus.RUNNING
+            )
+            .order_by(Deployment.created_at.desc())
+        )
+        successful_deployments = db.scalars(stmt).all()
+        
+        if len(successful_deployments) > settings.CLEANUP_RETENTION:
+            for dep_to_remove in successful_deployments[settings.CLEANUP_RETENTION:]:
+                if active_deployment_id and dep_to_remove.id == active_deployment_id:
+                    continue
+                # Remove container if still somehow exists (though should be stopped)
+                old_container_name = f"bonk-{project_id}-{dep_to_remove.deployment_number}"
+                DockerService.stop_and_remove_container(old_container_name)
+
+    @staticmethod
     def execute_deployment(deployment_id: uuid.UUID) -> None:
         """
         Background worker method to orchestrate the deployment pipeline.
         """
-        import time
-        import httpx
-        from app.db.session import SessionLocal
-        
         with SessionLocal() as db:
             deployment = db.get(Deployment, deployment_id)
             if not deployment or deployment.status != DeploymentStatus.PENDING:
                 return
+            
+            start_time = time.time()
 
             project = deployment.project
             old_active_deployment_id = project.active_deployment_id
@@ -220,13 +246,13 @@ class DeploymentService:
                     ports = DockerService.get_container_ports(container_name)
                     if not ports:
                         DockerService.stop_container(container_name)
-                        raise Exception("Container exposes no ports for health check")
+                        raise RuntimeError("Container exposes no ports for health check")
                     
                     host_port = list(ports.values())[0]
                     health_url = f"http://127.0.0.1:{host_port}{project.health_check_path}"
                     
                     is_healthy = False
-                    for _ in range(30):
+                    for _ in range(settings.HEALTH_CHECK_TIMEOUT):
                         try:
                             r = httpx.get(health_url, timeout=2.0)
                             if r.status_code == 200:
@@ -234,11 +260,11 @@ class DeploymentService:
                                 break
                         except httpx.RequestError:
                             pass
-                        time.sleep(1)
+                        time.sleep(settings.POLLING_INTERVAL)
                         
                     if not is_healthy:
                         DockerService.stop_container(container_name)
-                        raise Exception("Health check failed or timed out")
+                        raise RuntimeError(f"Health check failed or timed out after {settings.HEALTH_CHECK_TIMEOUT}s")
 
                 # Healthy/Running
                 deployment.status = DeploymentStatus.RUNNING
@@ -254,6 +280,12 @@ class DeploymentService:
                         old_container_name = f"bonk-{project.id}-{old_deployment.deployment_number}"
                         DockerService.stop_and_remove_container(old_container_name)
 
+                duration = time.time() - start_time
+                logger.info(f"Deployment succeeded | deployment_id={deployment.id} project_id={project.id} status={deployment.status} duration={duration:.2f}s")
+
+                DeploymentService.cleanup_old_deployments(db, project.id, project.active_deployment_id)
+                DockerService.prune_resources()
+
             except Exception as e:
                 db.rollback()
                 deployment = db.get(Deployment, deployment_id)
@@ -261,3 +293,9 @@ class DeploymentService:
                 deployment.error_message = str(e)
                 deployment.finished_at = func.now()
                 db.commit()
+
+                duration = time.time() - start_time
+                logger.error(f"Deployment failed | deployment_id={deployment.id} project_id={deployment.project_id} status={deployment.status} duration={duration:.2f}s error='{str(e)}'")
+                
+                failed_container_name = f"bonk-{deployment.project_id}-{deployment.deployment_number}"
+                DockerService.stop_and_remove_container(failed_container_name)

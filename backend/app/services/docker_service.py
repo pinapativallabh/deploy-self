@@ -16,13 +16,17 @@ class DockerServiceBuildException(DockerServiceException):
         self.logs = logs
 
 class DockerService:
+    _client = None
+
     @staticmethod
     def _get_client() -> docker.DockerClient:
-        try:
-            return docker.from_env()
-        except Exception as e:
-            logger.error(f"Failed to connect to Docker daemon: {e}")
-            raise DockerServiceException(f"Failed to connect to Docker daemon: {e}")
+        if DockerService._client is None:
+            try:
+                DockerService._client = docker.from_env()
+            except Exception as e:
+                logger.error(f"Failed to connect to Docker daemon: {e}")
+                raise DockerServiceException(f"Failed to connect to Docker daemon: {e}")
+        return DockerService._client
 
     @staticmethod
     def build_image(repo_path: str, image_tag: str, build_context: str = ".", dockerfile_path: str = "Dockerfile") -> tuple[str, str]:
@@ -237,3 +241,19 @@ class DockerService:
         except APIError as e:
             logger.error(f"Failed to inspect container {container_name_or_id}: {e}")
             raise DockerServiceException(f"Failed to inspect container: {e}")
+
+    @staticmethod
+    def prune_resources() -> None:
+        """
+        Removes stopped containers, dangling images, networks, and build cache.
+        Helps clean up failed or orphan containers.
+        """
+        client = DockerService._get_client()
+        try:
+            client.containers.prune()
+            client.images.prune(filters={'dangling': True})
+            client.networks.prune()
+            logger.info("Successfully pruned Docker resources")
+        except APIError as e:
+            logger.error(f"Docker API error during prune: {e}")
+            raise DockerServiceException(f"Failed to prune resources: {e}")

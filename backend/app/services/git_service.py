@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from git import Repo, exc
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -11,8 +12,11 @@ class GitServiceException(Exception):
 
 
 class GitService:
-    # Use a generic path or allow configuration
-    CLONE_BASE_DIR = Path("/tmp/bonk_repos") if os.name != "nt" else Path(os.getenv("TEMP", "C:/Temp")) / "bonk_repos"
+    @staticmethod
+    def get_clone_base_dir() -> Path:
+        base_dir = Path(settings.REPO_CACHE_PATH)
+        base_dir.mkdir(parents=True, exist_ok=True)
+        return base_dir
 
     @staticmethod
     def clone_repo(repository_url: str, branch: str, project_id: str, commit_sha: str = None) -> tuple[str, str]:
@@ -22,8 +26,8 @@ class GitService:
         Returns a tuple of (local_repository_path, commit_sha).
         """
         try:
-            GitService.CLONE_BASE_DIR.mkdir(parents=True, exist_ok=True)
-            repo_path = GitService.CLONE_BASE_DIR / str(project_id)
+            base_dir = GitService.get_clone_base_dir()
+            repo_path = base_dir / str(project_id)
 
             if repo_path.exists() and (repo_path / ".git").exists():
                 logger.info(f"Reusing existing clone at {repo_path} for project {project_id}")
@@ -38,6 +42,7 @@ class GitService:
                 repo = Repo.clone_from(repository_url, repo_path)
 
             if commit_sha:
+                repo.git.reset("--hard")
                 repo.git.checkout(commit_sha)
                 repo.git.clean("-fdx")
                 logger.info(f"Successfully checked out commit {commit_sha} for project {project_id}")
