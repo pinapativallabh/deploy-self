@@ -6,13 +6,13 @@ It uses a FastAPI backend, a PostgreSQL database for state and metadata, a Redis
 
 - **Backend:** FastAPI (Python), providing the RESTful API for users to create and manage projects, environment variables, and trigger deployments.
 - **Database:** PostgreSQL storing `User`, `Project`, `Deployment`, and `EnvironmentVariable`.
-- **Cache/Broker:** Redis, used for caching and job queuing (future use).
-- **Worker/Deployment Engine:** The backend orchestrates Docker directly (using `docker-py`) to build images and run them.
+- **Cache/Broker:** Redis, used by ARQ for deployment job queuing and token revocation.
+- **Worker/Deployment Engine:** An ARQ worker orchestrates Docker directly (using `docker-py`) to build images and run deployments.
 
 ## Request Flow
 1. User authenticates via `/auth/login` and receives a JWT token.
 2. User creates a Project via `POST /projects/`, providing a repository URL and build settings.
-3. User adds environment variables via `POST /projects/{project_id}/env/`.
+3. User adds environment variables via `POST /projects/{project_id}/environment/`.
 4. User triggers a deployment via `POST /projects/{project_id}/deployments/`.
 5. The API enqueues the deployment or executes it asynchronously using `execute_deployment()`.
 

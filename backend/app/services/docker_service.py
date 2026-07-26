@@ -258,8 +258,9 @@ class DockerService:
         try:
             client.containers.prune()
             client.images.prune(filters={'dangling': True})
-            client.networks.prune()
-            logger.info("Successfully pruned Docker resources")
+            # The Docker socket targets the host daemon. Network pruning could
+            # disrupt unrelated applications, so only Bonk-safe resources are pruned.
+            logger.info("Successfully pruned stopped containers and dangling images")
         except APIError as e:
             logger.error(f"Docker API error during prune: {e}")
             raise DockerServiceException(f"Failed to prune resources: {e}")

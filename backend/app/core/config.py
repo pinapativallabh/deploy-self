@@ -22,7 +22,7 @@ volume mounting and parsing logic for no additional benefit at this scale.
 
 import secrets
 
-from pydantic import computed_field
+from pydantic import computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -82,6 +82,15 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        """Reject insecure development defaults outside local development."""
+        if self.APP_ENV != "development" and self.JWT_SECRET_KEY.startswith(
+            "CHANGE-ME-IN-PRODUCTION-"
+        ):
+            raise ValueError("JWT_SECRET_KEY must be explicitly set outside development")
+        return self
 
     @computed_field  # type: ignore[prop-decorator]
     @property
