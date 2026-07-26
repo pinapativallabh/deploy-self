@@ -45,6 +45,7 @@ services:
       POSTGRES_PORT: 5432
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REPO_CACHE_PATH: /app/storage/repos
     command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -90,6 +91,7 @@ services:
       POSTGRES_PORT: 5432
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REPO_CACHE_PATH: /app/storage/repos
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - repos_data:/app/storage/repos

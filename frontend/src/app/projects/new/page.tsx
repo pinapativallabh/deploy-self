@@ -33,9 +33,13 @@ export default function NewProjectPage() {
     setError('');
 
     try {
+      const payload: Record<string, string> = { ...formData };
+      if (!payload.description) delete payload.description;
+      if (!payload.health_check_path) payload.health_check_path = '/health';
+
       const project = await apiClient<Project>('/projects', {
         method: 'POST',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       router.push(`/projects/${project.id}`);
     } catch (err: unknown) {

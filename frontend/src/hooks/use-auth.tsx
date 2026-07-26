@@ -47,9 +47,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading) {
-      if (!user && !pathname.startsWith('/login')) {
+      const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register');
+      if (!user && !isAuthPage) {
         router.push('/login');
-      } else if (user && pathname.startsWith('/login')) {
+      } else if (user && isAuthPage) {
         router.push('/dashboard');
       }
     }

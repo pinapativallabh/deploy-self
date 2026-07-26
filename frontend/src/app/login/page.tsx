@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { apiClient } from '@/lib/api/client';
 import { TokenResponse } from '@/types';
 import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const [loginId, setLoginId] = useState('');
@@ -82,6 +83,13 @@ export default function LoginPage() {
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
           </button>
         </form>
+
+        <p className="text-center text-neutral-500 text-sm mt-6">
+          Don&apos;t have an account?{' '}
+          <Link href="/register" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+            Create one
+          </Link>
+        </p>
       </div>
     </div>
   );

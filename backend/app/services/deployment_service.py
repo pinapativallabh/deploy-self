@@ -237,7 +237,7 @@ class DeploymentService:
                         raise RuntimeError("Container exposes no ports for health check")
                     
                     host_port = list(ports.values())[0]
-                    health_url = f"http://127.0.0.1:{host_port}{project.health_check_path}"
+                    health_url = f"http://host.docker.internal:{host_port}{project.health_check_path}"
                     
                     is_healthy = False
                     for _ in range(settings.HEALTH_CHECK_TIMEOUT):
