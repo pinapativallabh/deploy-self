@@ -22,7 +22,7 @@ The API records deployment state in PostgreSQL and queues work in Redis. The ARQ
 ```bash
 git clone https://github.com/pinapativallabh/deploy-self.git bonk
 cd bonk
-cp backend/.env.example backend/.env
+cp .env.example backend/.env
 docker compose up --build -d
 ```
 
@@ -32,7 +32,7 @@ The Compose configuration runs Alembic migrations before starting the API and wa
 
 ## Configuration
 
-Backend settings are loaded from `backend/.env`; use `backend/.env.example` as the template. For deployment outside local development:
+Backend settings are loaded from `backend/.env`; use the repository `.env.example` as the template. For deployment outside local development:
 
 - Set a unique, high-entropy `JWT_SECRET_KEY`.
 - Set `APP_ENV` to a non-development value. The application rejects its generated development JWT secret in this mode.
