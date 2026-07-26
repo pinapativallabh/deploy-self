@@ -2,9 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies if any are needed in future
+# GitPython shells out to the Git executable to clone and update application
+# repositories during deployments.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

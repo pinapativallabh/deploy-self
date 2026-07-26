@@ -40,6 +40,12 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - repos_data:/app/storage/repos
@@ -49,6 +55,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
     restart: always
 
   frontend:
@@ -60,6 +72,9 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
     restart: always
 
   worker:
@@ -70,14 +85,17 @@ services:
     command: ["arq", "app.worker.WorkerSettings"]
     env_file:
       - ./backend/.env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - repos_data:/app/storage/repos
       - logs_data:/app/storage/logs
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
+      backend:
         condition: service_healthy
     restart: always
 
