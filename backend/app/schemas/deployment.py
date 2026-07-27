@@ -20,6 +20,8 @@ class DeploymentResponse(BaseModel):
     commit_sha: Optional[str] = None
     commit_message: Optional[str] = None
     logs_path: Optional[str] = None
+    host_port: Optional[int] = None
+    deployment_url: Optional[str] = None
     error_message: Optional[str] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None

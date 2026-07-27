@@ -227,30 +227,46 @@ class DeploymentService:
                     env_vars=env_vars
                 )
 
+                # Give it a tiny bit of time to register ports
+                time.sleep(2)
+                ports = DockerService.get_container_ports(container_name)
+                
+                host_port = None
+                if ports:
+                    host_port = list(ports.values())[0]
+                    deployment.host_port = host_port
+                    deployment.deployment_url = f"http://localhost:{host_port}"
+                    db.commit()
+
                 # Health Check
                 if project.health_check_path:
-                    # Give it a tiny bit of time to register ports
-                    time.sleep(2)
-                    ports = DockerService.get_container_ports(container_name)
                     if not ports:
                         DockerService.stop_container(container_name)
                         raise RuntimeError("Container exposes no ports for health check")
                     
-                    host_port = list(ports.values())[0]
                     health_url = f"http://host.docker.internal:{host_port}{project.health_check_path}"
                     
                     is_healthy = False
                     for _ in range(settings.HEALTH_CHECK_TIMEOUT):
                         try:
                             r = httpx.get(health_url, timeout=2.0)
+                            logger.info(f"Health check attempt to {health_url}: {r.status_code}")
                             if r.status_code == 200:
                                 is_healthy = True
                                 break
-                        except httpx.RequestError:
-                            pass
+                        except httpx.RequestError as exc:
+                            logger.info(f"Health check attempt to {health_url} failed with exception: {exc}")
                         time.sleep(settings.POLLING_INTERVAL)
                         
                     if not is_healthy:
+                        try:
+                            runtime_logs = DockerService.tail_logs(container_name, tail=100)
+                            with open(log_file_path, "a", encoding="utf-8") as f:
+                                f.write("\n\n--- RUNTIME LOGS (HEALTH CHECK FAILED) ---\n\n")
+                                f.write(runtime_logs)
+                        except Exception as el:
+                            logger.error(f"Failed to fetch runtime logs: {el}")
+                            
                         DockerService.stop_container(container_name)
                         raise RuntimeError(f"Health check failed or timed out after {settings.HEALTH_CHECK_TIMEOUT}s")
 

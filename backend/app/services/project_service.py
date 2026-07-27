@@ -102,5 +102,14 @@ class ProjectService:
     @staticmethod
     def delete_project(db: Session, user: User, project_id: uuid.UUID) -> None:
         project = ProjectService.get_project(db, user, project_id)
+        
+        # Cleanup docker resources
+        from app.services.docker_service import DockerService
+        DockerService.cleanup_project_resources(str(project.id))
+        
+        # Cleanup git repository cache
+        from app.services.git_service import GitService
+        GitService.delete_repo(str(project.id))
+        
         db.delete(project)
         db.commit()

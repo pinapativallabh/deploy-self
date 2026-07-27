@@ -264,3 +264,32 @@ class DockerService:
         except APIError as e:
             logger.error(f"Docker API error during prune: {e}")
             raise DockerServiceException(f"Failed to prune resources: {e}")
+
+    @staticmethod
+    def cleanup_project_resources(project_id: str) -> None:
+        """
+        Stop and remove all containers and images associated with a project.
+        """
+        client = DockerService._get_client()
+        try:
+            containers = client.containers.list(all=True, filters={"name": f"bonk-{project_id}"})
+            for container in containers:
+                logger.info(f"Removing container {container.name} for project {project_id}")
+                try:
+                    container.stop(timeout=5)
+                except Exception:
+                    pass
+                try:
+                    container.remove(force=True)
+                except Exception:
+                    pass
+                    
+            images = client.images.list(filters={"reference": f"bonk-{project_id}:*"})
+            for image in images:
+                logger.info(f"Removing image {image.tags} for project {project_id}")
+                try:
+                    client.images.remove(image.id, force=True)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.error(f"Failed to cleanup docker resources for project {project_id}: {e}")

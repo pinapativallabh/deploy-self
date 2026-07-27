@@ -69,3 +69,29 @@ class GitService:
         except Exception as e:
             logger.error(f"Failed to clone/update repository for project {project_id}: {e}")
             raise GitServiceException(f"Failed to prepare repository: {e}")
+
+    @staticmethod
+    def delete_repo(project_id: str) -> None:
+        import shutil
+        import stat
+        
+        base_dir = GitService.get_clone_base_dir()
+        repo_path = base_dir / str(project_id)
+        
+        if not repo_path.exists():
+            return
+            
+        def handle_remove_readonly(func, path, exc):
+            import errno
+            excvalue = exc[1]
+            if func in (os.rmdir, os.remove, os.unlink) and excvalue.errno == errno.EACCES:
+                os.chmod(path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO) # 0777
+                func(path)
+            else:
+                raise
+                
+        try:
+            shutil.rmtree(repo_path, ignore_errors=False, onerror=handle_remove_readonly)
+            logger.info(f"Successfully deleted repository cache for project {project_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete repository cache for project {project_id}: {e}")

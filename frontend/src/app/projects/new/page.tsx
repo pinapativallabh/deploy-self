@@ -17,7 +17,7 @@ export default function NewProjectPage() {
     name: '',
     description: '',
     repository_url: '',
-    default_branch: 'master',
+    default_branch: 'main',
     dockerfile_path: 'Dockerfile',
     build_context: '.',
     health_check_path: ''

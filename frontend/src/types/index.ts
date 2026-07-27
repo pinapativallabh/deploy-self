@@ -27,6 +27,8 @@ export interface Deployment {
   status: DeploymentStatus;
   branch: string;
   commit_sha: string | null;
+  host_port?: number;
+  deployment_url?: string;
   created_at: string;
   finished_at: string | null;
 }

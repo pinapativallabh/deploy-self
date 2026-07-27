@@ -85,6 +85,16 @@ class Deployment(Base):
         nullable=True,
     )
 
+    host_port: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    deployment_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
     error_message: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,

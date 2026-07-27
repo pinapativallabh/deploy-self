@@ -3,14 +3,15 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { apiClient } from '@/lib/api/client';
 import { Project, Deployment, EnvironmentVariable } from '@/types';
-import { ArrowLeft, Rocket, Settings, RotateCcw, Play, RefreshCw, Terminal, Plus, Trash2, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Rocket, Settings, RotateCcw, Play, RefreshCw, Terminal, Plus, Trash2, ShieldAlert, ExternalLink, Square, PlaySquare, Trash } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function ProjectDetailsPage() {
   const params = useParams();
+  const router = useRouter();
   const projectId = params.id as string;
   
   const [project, setProject] = useState<Project | null>(null);
@@ -72,11 +73,64 @@ export default function ProjectDetailsPage() {
       await apiClient(`/projects/${projectId}/restart`, {
         method: 'POST',
       });
-      alert('Restart triggered successfully');
+      await loadData();
     } catch (error) {
       console.error(error);
       alert('Failed to restart');
     } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleStop = async () => {
+    setActionLoading(true);
+    try {
+      await apiClient(`/projects/${projectId}/stop`, { method: 'POST' });
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      alert('Failed to stop');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleStart = async () => {
+    setActionLoading(true);
+    try {
+      await apiClient(`/projects/${projectId}/start`, { method: 'POST' });
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      alert('Failed to start');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!confirm('Are you sure you want to remove the deployment?')) return;
+    setActionLoading(true);
+    try {
+      await apiClient(`/projects/${projectId}/runtime`, { method: 'DELETE' });
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      alert('Failed to remove deployment');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!confirm('Are you sure you want to delete this project? This will remove all deployments, code, and settings. This cannot be undone.')) return;
+    setActionLoading(true);
+    try {
+      await apiClient(`/projects/${projectId}`, { method: 'DELETE' });
+      router.push('/projects');
+    } catch (error) {
+      console.error(error);
+      alert('Failed to delete project');
       setActionLoading(false);
     }
   };
@@ -181,16 +235,53 @@ export default function ProjectDetailsPage() {
             </h1>
             <p className="text-neutral-400 mt-1 font-mono text-sm">{project.repository_url}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {activeDeployment && (
-              <button 
-                onClick={handleRestart}
-                disabled={actionLoading}
-                className="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Restart
-              </button>
+              <>
+                {activeDeployment.deployment_url && (
+                  <a 
+                    href={activeDeployment.deployment_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Open Application
+                  </a>
+                )}
+                <button 
+                  onClick={handleRestart}
+                  disabled={actionLoading}
+                  className="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                  title="Restart Deployment"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={handleStop}
+                  disabled={actionLoading}
+                  className="bg-neutral-800 hover:bg-neutral-700 text-amber-400 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                  title="Stop Deployment"
+                >
+                  <Square className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={handleStart}
+                  disabled={actionLoading}
+                  className="bg-neutral-800 hover:bg-neutral-700 text-emerald-400 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                  title="Start Deployment"
+                >
+                  <PlaySquare className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={handleRemove}
+                  disabled={actionLoading}
+                  className="bg-neutral-800 hover:bg-red-900/50 text-red-400 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                  title="Remove Deployment"
+                >
+                  <Trash className="w-4 h-4" />
+                </button>
+              </>
             )}
             <button 
               onClick={handleDeploy}
@@ -248,6 +339,17 @@ export default function ProjectDetailsPage() {
                           <span className="text-neutral-500 font-mono text-xs bg-neutral-950 px-2 py-0.5 rounded border border-neutral-800">
                             {dep.commit_sha.substring(0, 7)}
                           </span>
+                        )}
+                        {dep.deployment_url && (
+                          <span className="text-indigo-400 text-sm flex items-center gap-1 ml-2">
+                            <ExternalLink className="w-3 h-3" />
+                            <a href={dep.deployment_url} target="_blank" rel="noreferrer" className="hover:underline">
+                              {dep.deployment_url}
+                            </a>
+                          </span>
+                        )}
+                        {dep.host_port && (
+                          <span className="text-neutral-500 text-xs ml-2">Port: {dep.host_port}</span>
                         )}
                       </div>
                       <div className="text-xs text-neutral-500">
@@ -366,6 +468,22 @@ export default function ProjectDetailsPage() {
                 <span className="block text-neutral-500 mb-1">Dockerfile</span>
                 <span className="text-white font-mono">{project.dockerfile_path}</span>
               </div>
+            </div>
+          </div>
+          <div className="bg-red-950/20 border border-red-900/50 rounded-2xl overflow-hidden">
+             <div className="p-6 border-b border-red-900/50">
+              <h2 className="text-lg font-bold text-red-500 mb-1">Danger Zone</h2>
+              <p className="text-sm text-red-400/80">Irreversible and destructive actions.</p>
+            </div>
+            <div className="p-6">
+              <button 
+                onClick={handleDeleteProject}
+                disabled={actionLoading}
+                className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Project
+              </button>
             </div>
           </div>
         </div>
