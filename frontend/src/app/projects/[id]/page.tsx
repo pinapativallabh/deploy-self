@@ -257,6 +257,9 @@ export default function ProjectDetailsPage() {
       if (runtimeStatus === 'exited') return 'STOPPED';
       return runtimeStatus.toUpperCase();
     }
+    if (dep.status === 'RUNNING' && dep.id !== project?.active_deployment_id) {
+      return 'ARCHIVED';
+    }
     return dep.status;
   };
 
@@ -430,9 +433,9 @@ export default function ProjectDetailsPage() {
                     {(dep.status === 'RUNNING' || dep.status === 'ARCHIVED') && (
                       <button 
                         onClick={() => handleRollback(dep.id)}
-                        disabled={actionLoading || dep.status === 'RUNNING'}
+                        disabled={actionLoading || dep.id === project?.active_deployment_id}
                         className="p-2 text-neutral-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-neutral-400"
-                        title={dep.status === 'RUNNING' ? "Current active deployment" : "Rollback to this version"}
+                        title={dep.id === project?.active_deployment_id ? "Current active deployment" : "Rollback to this version"}
                       >
                         <RotateCcw className="w-5 h-5" />
                       </button>
