@@ -22,6 +22,16 @@ export default function ProjectDetailsPage() {
   
   const [activeTab, setActiveTab] = useState<'deployments' | 'settings'>('deployments');
   const [newEnv, setNewEnv] = useState({ key: '', value: '' });
+  const [runtimeStatus, setRuntimeStatus] = useState<string | null>(null);
+  
+  const [editForm, setEditForm] = useState({
+    name: '',
+    repository_url: '',
+    default_branch: '',
+    build_context: '',
+    dockerfile_path: ''
+  });
+  const [isEditing, setIsEditing] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -33,6 +43,27 @@ export default function ProjectDetailsPage() {
       setProject(projData);
       setDeployments(depsData);
       setEnvVars(envsData);
+      
+      if (!isEditing) {
+        setEditForm({
+          name: projData.name,
+          repository_url: projData.repository_url,
+          default_branch: projData.default_branch,
+          build_context: projData.build_context,
+          dockerfile_path: projData.dockerfile_path
+        });
+      }
+
+      try {
+        if (projData.active_deployment_id) {
+          const rt = await apiClient<{status: string}>(`/projects/${projectId}/runtime`);
+          setRuntimeStatus(rt.status);
+        } else {
+          setRuntimeStatus(null);
+        }
+      } catch {
+        setRuntimeStatus(null);
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -45,9 +76,7 @@ export default function ProjectDetailsPage() {
     loadData();
     // Poll for deployments every 5s if there are pending/building deployments
     const interval = setInterval(() => {
-      apiClient<Deployment[]>(`/projects/${projectId}/deployments`)
-        .then(setDeployments)
-        .catch(console.error);
+      loadData();
     }, 5000);
     return () => clearInterval(interval);
   }, [projectId, loadData]);
@@ -160,8 +189,9 @@ export default function ProjectDetailsPage() {
       });
       setNewEnv({ key: '', value: '' });
       await loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      alert(`Failed to add environment variable: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -173,6 +203,24 @@ export default function ProjectDetailsPage() {
       await loadData();
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const handleUpdateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    try {
+      await apiClient(`/projects/${projectId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(editForm)
+      });
+      setIsEditing(false);
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      alert('Failed to update project');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -203,6 +251,15 @@ export default function ProjectDetailsPage() {
   const activeDeployment = deployments.find(d => d.status === 'RUNNING');
   const sortedDeployments = [...deployments].sort((a, b) => b.deployment_number - a.deployment_number);
 
+  const getDisplayStatus = (dep: Deployment) => {
+    if (dep.id === project?.active_deployment_id && dep.status === 'RUNNING' && runtimeStatus) {
+      if (runtimeStatus === 'running') return 'RUNNING';
+      if (runtimeStatus === 'exited') return 'STOPPED';
+      return runtimeStatus.toUpperCase();
+    }
+    return dep.status;
+  };
+
   const StatusBadge = ({ status }: { status: string }) => {
     const colors: Record<string, string> = {
       'RUNNING': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -212,6 +269,8 @@ export default function ProjectDetailsPage() {
       'FAILED': 'bg-red-500/10 text-red-400 border-red-500/20',
       'CANCELED': 'bg-neutral-500/10 text-neutral-400 border-neutral-500/20',
       'ARCHIVED': 'bg-neutral-500/10 text-neutral-400 border-neutral-500/20',
+      'STOPPED': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+      'DEAD': 'bg-red-500/10 text-red-400 border-red-500/20',
     };
     return (
       <span className={`px-2.5 py-1 text-xs font-medium border rounded-full ${colors[status] || 'bg-neutral-800 text-neutral-400'}`}>
@@ -231,7 +290,7 @@ export default function ProjectDetailsPage() {
           <div>
             <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
               {project.name}
-              {activeDeployment && <span className="flex h-3 w-3 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span></span>}
+              {activeDeployment && runtimeStatus === 'running' && <span className="flex h-3 w-3 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span></span>}
             </h1>
             <p className="text-neutral-400 mt-1 font-mono text-sm">{project.repository_url}</p>
           </div>
@@ -329,7 +388,7 @@ export default function ProjectDetailsPage() {
                 <div key={dep.id} className="p-6 hover:bg-neutral-800/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-start gap-4">
                     <div className="mt-1">
-                      <StatusBadge status={dep.status} />
+                      <StatusBadge status={getDisplayStatus(dep)} />
                     </div>
                     <div>
                       <div className="flex items-center gap-3 mb-1">
@@ -448,27 +507,74 @@ export default function ProjectDetailsPage() {
           </div>
           
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
-             <div className="p-6 border-b border-neutral-800">
+             <div className="p-6 border-b border-neutral-800 flex justify-between items-center">
               <h2 className="text-lg font-bold text-white mb-1">Project Details</h2>
+              {!isEditing ? (
+                <button onClick={() => setIsEditing(true)} className="text-sm text-indigo-400 hover:text-indigo-300">Edit</button>
+              ) : (
+                <button onClick={() => {setIsEditing(false); setEditForm({
+                  name: project.name,
+                  repository_url: project.repository_url,
+                  default_branch: project.default_branch,
+                  build_context: project.build_context,
+                  dockerfile_path: project.dockerfile_path
+                });}} className="text-sm text-neutral-400 hover:text-white">Cancel</button>
+              )}
             </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-              <div>
-                <span className="block text-neutral-500 mb-1">Repository</span>
-                <span className="text-white font-mono">{project.repository_url}</span>
+            {!isEditing ? (
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                <div>
+                  <span className="block text-neutral-500 mb-1">Name</span>
+                  <span className="text-white font-mono">{project.name}</span>
+                </div>
+                <div>
+                  <span className="block text-neutral-500 mb-1">Repository</span>
+                  <span className="text-white font-mono">{project.repository_url}</span>
+                </div>
+                <div>
+                  <span className="block text-neutral-500 mb-1">Default Branch</span>
+                  <span className="text-white font-mono">{project.default_branch}</span>
+                </div>
+                <div>
+                  <span className="block text-neutral-500 mb-1">Build Context</span>
+                  <span className="text-white font-mono">{project.build_context}</span>
+                </div>
+                <div>
+                  <span className="block text-neutral-500 mb-1">Dockerfile</span>
+                  <span className="text-white font-mono">{project.dockerfile_path}</span>
+                </div>
               </div>
-              <div>
-                <span className="block text-neutral-500 mb-1">Default Branch</span>
-                <span className="text-white font-mono">{project.default_branch}</span>
-              </div>
-              <div>
-                <span className="block text-neutral-500 mb-1">Build Context</span>
-                <span className="text-white font-mono">{project.build_context}</span>
-              </div>
-              <div>
-                <span className="block text-neutral-500 mb-1">Dockerfile</span>
-                <span className="text-white font-mono">{project.dockerfile_path}</span>
-              </div>
-            </div>
+            ) : (
+              <form onSubmit={handleUpdateProject} className="p-6 space-y-4 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-neutral-500 mb-1">Name</label>
+                    <input required value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-500 mb-1">Repository</label>
+                    <input required value={editForm.repository_url} onChange={e => setEditForm({...editForm, repository_url: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-500 mb-1">Default Branch</label>
+                    <input required value={editForm.default_branch} onChange={e => setEditForm({...editForm, default_branch: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-500 mb-1">Build Context</label>
+                    <input required value={editForm.build_context} onChange={e => setEditForm({...editForm, build_context: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-500 mb-1">Dockerfile</label>
+                    <input required value={editForm.dockerfile_path} onChange={e => setEditForm({...editForm, dockerfile_path: e.target.value})} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-white" />
+                  </div>
+                </div>
+                <div className="flex justify-end pt-4">
+                  <button type="submit" disabled={actionLoading} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50">
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
           <div className="bg-red-950/20 border border-red-900/50 rounded-2xl overflow-hidden">
              <div className="p-6 border-b border-red-900/50">

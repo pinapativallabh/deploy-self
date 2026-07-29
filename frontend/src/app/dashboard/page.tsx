@@ -23,6 +23,8 @@ export default function DashboardPage() {
       }
     }
     loadDashboard();
+    const interval = setInterval(loadDashboard, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -60,18 +62,18 @@ export default function DashboardPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-neutral-400">Active Deployments</p>
-              <p className="text-2xl font-bold text-white">-</p>
+              <p className="text-2xl font-bold text-white">{loading ? '-' : projects.filter(p => p.active_deployment_id).length}</p>
             </div>
           </div>
         </div>
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-blue-500/10 text-blue-400 rounded-xl flex items-center justify-center">
-              <Clock className="w-6 h-6" />
+              <Activity className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-neutral-400">Uptime</p>
-              <p className="text-2xl font-bold text-white">99.9%</p>
+              <p className="text-sm font-medium text-neutral-400">System Status</p>
+              <p className="text-2xl font-bold text-emerald-400">Online</p>
             </div>
           </div>
         </div>

@@ -14,6 +14,7 @@ export interface Project {
   dockerfile_path: string;
   build_context: string;
   health_check_path: string | null;
+  active_deployment_id: string | null;
   created_at: string;
   updated_at: string;
 }
