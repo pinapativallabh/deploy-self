@@ -248,7 +248,9 @@ export default function ProjectDetailsPage() {
     );
   }
 
-  const activeDeployment = deployments.find(d => d.status === 'RUNNING');
+  const activeDeployment = project?.active_deployment_id 
+    ? deployments.find(d => d.id === project.active_deployment_id) 
+    : null;
   const sortedDeployments = [...deployments].sort((a, b) => b.deployment_number - a.deployment_number);
 
   const getDisplayStatus = (dep: Deployment) => {
