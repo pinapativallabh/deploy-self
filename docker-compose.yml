@@ -51,6 +51,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - repos_data:/app/storage/repos
       - logs_data:/app/storage/logs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,6 +98,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - repos_data:/app/storage/repos
       - logs_data:/app/storage/logs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       backend:
         condition: service_healthy
