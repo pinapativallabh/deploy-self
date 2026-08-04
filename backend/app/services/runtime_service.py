@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.models.deployment import DeploymentStatus
 from app.models.project import Project
 from app.services.docker_service import DockerService, DockerServiceException
 
@@ -75,7 +76,7 @@ class RuntimeService:
             project.active_deployment_id = None
             
             # Update the deployment status to ARCHIVED
-            deployment.status = "ARCHIVED"
+            deployment.status = DeploymentStatus.ARCHIVED
             
             db.commit()
             return {"status": "removed"}
