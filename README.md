@@ -38,6 +38,10 @@ Backend settings are loaded from `backend/.env`; use the repository `.env.exampl
 - Set `APP_ENV` to a non-development value. The application rejects its generated development JWT secret in this mode.
 - Set `CORS_ORIGINS` to a JSON array of trusted frontend origins.
 - Replace the development PostgreSQL password.
+- Set `NEXT_PUBLIC_API_URL` to the public URL of the backend (e.g., `http://<your-server-ip>:8000`). This value is baked into the frontend at build time:
+  ```bash
+  NEXT_PUBLIC_API_URL=http://your-server:8000 docker compose up --build -d
+  ```
 
 ### Registration Limits
 Bonk is intended for private, self-hosted environments. You can control account registration using these variables in `backend/.env`:
