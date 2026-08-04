@@ -126,22 +126,30 @@ async def get_current_user(
         )
 
 
+import time
+from collections import defaultdict
+
+_rate_limits = defaultdict(list)
+
 class RateLimiter:
     """
-    Rate limiting dependency using Redis.
+    Rate limiting dependency using in-memory token bucket/list.
+    Suitable for single-node deployments.
     """
     def __init__(self, max_requests: int = 5, window_seconds: int = 60):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
 
-    async def __call__(self, request: Request, redis: Redis = Depends(get_redis)):
+    async def __call__(self, request: Request):
         client_ip = request.client.host if request.client else "unknown"
         path = request.url.path
-        key = f"rate_limit:{path}:{client_ip}"
+        key = f"{path}:{client_ip}"
         
-        current = await redis.incr(key)
-        if current == 1:
-            await redis.expire(key, self.window_seconds)
-            
-        if current > self.max_requests:
+        now = time.time()
+        # Clean up old entries
+        _rate_limits[key] = [t for t in _rate_limits[key] if now - t < self.window_seconds]
+        
+        if len(_rate_limits[key]) >= self.max_requests:
             raise HTTPException(status_code=429, detail="Too Many Requests")
+            
+        _rate_limits[key].append(now)

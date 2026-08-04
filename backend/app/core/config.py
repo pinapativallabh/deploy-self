@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int = 5433
 
     # --- Application Settings ---
+    ALLOW_REGISTRATION: bool = True
+    MAX_USERS: int = 5
     HEALTH_CHECK_TIMEOUT: int = 30
     POLLING_INTERVAL: int = 1
     BUILD_TIMEOUT: int = 600
@@ -64,20 +66,30 @@ class Settings(BaseSettings):
     CLEANUP_RETENTION: int = 5
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
+    # --- Safety & Limits ---
+    MAX_REQUEST_BODY_MB: int = 5
+    RATE_LIMIT_LOGIN_MAX: int = 10
+    RATE_LIMIT_LOGIN_WINDOW: int = 60
+    RATE_LIMIT_REGISTER_MAX: int = 5
+    RATE_LIMIT_REGISTER_WINDOW: int = 60
+    GIT_CLONE_TIMEOUT: int = 300
+    WEBHOOK_TIMEOUT: int = 10
+    MAX_DEPLOYMENT_DURATION_MINUTES: int = 15
+    MAX_CONCURRENT_DEPLOYMENTS: int = 2
+    MAX_DEPLOYMENT_LOG_MB: int = 10
+    CONTAINER_CPU_LIMIT: float = 1.0
+    CONTAINER_MEMORY_LIMIT: str = "512m"
+    MAX_PROJECT_NAME_LENGTH: int = 64
+    MAX_REPO_URL_LENGTH: int = 256
+    MAX_ENV_VARS_PER_PROJECT: int = 50
+    MAX_ENV_VAR_SIZE: int = 4096
+
     # --- Redis ---
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
 
     # --- JWT / Authentication ---
-    # WHY NO DEFAULT FOR JWT_SECRET_KEY IN PRODUCTION:
-    # The default value is only suitable for development. In production,
-    # JWT_SECRET_KEY MUST be set via environment variable. Using a default
-    # secret in production would mean every deployment shares the same
-    # signing key — an attacker who reads the source code can forge tokens.
-    #
-    # We provide a default here to avoid breaking the development experience.
-    # The application logs a warning at startup if the default is in use.
     JWT_SECRET_KEY: str = "CHANGE-ME-IN-PRODUCTION-" + secrets.token_urlsafe(32)
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
@@ -90,19 +102,26 @@ class Settings(BaseSettings):
             "CHANGE-ME-IN-PRODUCTION-"
         ):
             raise ValueError("JWT_SECRET_KEY must be explicitly set outside development")
+        if self.MAX_USERS < 1:
+            raise ValueError("MAX_USERS must be greater than 0")
+        if self.MAX_REQUEST_BODY_MB < 1:
+            raise ValueError("MAX_REQUEST_BODY_MB must be greater than 0")
+        if self.RATE_LIMIT_LOGIN_MAX < 1 or self.RATE_LIMIT_REGISTER_MAX < 1:
+            raise ValueError("Rate limits must be greater than 0")
+        if self.MAX_DEPLOYMENT_DURATION_MINUTES < 1:
+            raise ValueError("MAX_DEPLOYMENT_DURATION_MINUTES must be greater than 0")
+        if self.MAX_CONCURRENT_DEPLOYMENTS < 1:
+            raise ValueError("MAX_CONCURRENT_DEPLOYMENTS must be greater than 0")
+        if self.MAX_DEPLOYMENT_LOG_MB < 1:
+            raise ValueError("MAX_DEPLOYMENT_LOG_MB must be greater than 0")
+        if self.CONTAINER_CPU_LIMIT <= 0:
+            raise ValueError("CONTAINER_CPU_LIMIT must be positive")
         return self
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url(self) -> str:
-        """
-        Build the SQLAlchemy connection string from individual components.
-
-        WHY COMPUTED INSTEAD OF A SEPARATE ENV VAR:
-        A single DATABASE_URL env var is convenient but forces the operator to
-        construct URLs manually. Individual components are easier to override
-        in Docker Compose and less error-prone. We assemble the URL internally.
-        """
+        """Build the SQLAlchemy connection string from individual components."""
         return (
             f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"

@@ -259,9 +259,6 @@ export default function ProjectDetailsPage() {
       if (runtimeStatus === 'exited') return 'STOPPED';
       return runtimeStatus.toUpperCase();
     }
-    if (dep.status === 'RUNNING' && dep.id !== project?.active_deployment_id) {
-      return 'ARCHIVED';
-    }
     return dep.status;
   };
 

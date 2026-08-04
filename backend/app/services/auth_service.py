@@ -34,7 +34,7 @@ import logging
 
 import jwt
 from redis.asyncio import Redis
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -93,14 +93,29 @@ def register_user(db: Session, data: RegisterRequest) -> User:
     Raises:
         AuthError: If email or username is already taken.
     """
+    # Prevent concurrent registration race conditions by locking the table
+    db.execute(text("LOCK TABLE users IN EXCLUSIVE MODE"))
+
+    # Check registration constraints (bootstrap allows first user regardless of config)
+    user_count = db.query(User).count()
+    if user_count > 0:
+        if not settings.ALLOW_REGISTRATION:
+            db.rollback()
+            raise AuthError("Registration is disabled.", status_code=403)
+        if user_count >= settings.MAX_USERS:
+            db.rollback()
+            raise AuthError("Maximum number of users reached.", status_code=403)
+
     # Check for existing email
     existing_email = db.query(User).filter(User.email == data.email).first()
     if existing_email:
+        db.rollback()
         raise AuthError("A user with this email already exists.", status_code=409)
 
     # Check for existing username
     existing_username = db.query(User).filter(User.username == data.username).first()
     if existing_username:
+        db.rollback()
         raise AuthError("A user with this username already exists.", status_code=409)
 
     user = User(

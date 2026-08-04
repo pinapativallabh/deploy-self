@@ -70,8 +70,13 @@ class RuntimeService:
         
         try:
             DockerService.remove_container(container_name)
+            
             # Unset active deployment since runtime is gone
             project.active_deployment_id = None
+            
+            # Update the deployment status to ARCHIVED
+            deployment.status = "ARCHIVED"
+            
             db.commit()
             return {"status": "removed"}
         except DockerServiceException as e:

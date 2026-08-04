@@ -83,13 +83,21 @@ class DockerService:
         client = DockerService._get_client()
         logger.info(f"Starting container {container_name} from {image_tag}")
         try:
+            # Apply resource governance limits
+            from app.core.config import settings
+            
+            nano_cpus = int(settings.CONTAINER_CPU_LIMIT * 1e9)
+            mem_limit = settings.CONTAINER_MEMORY_LIMIT
+
             container = client.containers.run(
                 image_tag,
                 name=container_name,
                 detach=True,
                 environment=env_vars or {},
                 publish_all_ports=True,
-                restart_policy={"Name": "on-failure", "MaximumRetryCount": 3}
+                restart_policy={"Name": "on-failure", "MaximumRetryCount": 3},
+                nano_cpus=nano_cpus,
+                mem_limit=mem_limit,
             )
             logger.info(f"Successfully started container {container_name} (ID: {container.id})")
             return container.id

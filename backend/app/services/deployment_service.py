@@ -195,6 +195,15 @@ class DeploymentService:
                 os.makedirs(logs_dir, exist_ok=True)
                 log_file_path = os.path.join(logs_dir, f"{deployment.id}.log")
 
+                def _write_logs(log_str: str, path: str, append: bool = False):
+                    max_bytes = settings.MAX_DEPLOYMENT_LOG_MB * 1024 * 1024
+                    b = log_str.encode("utf-8")
+                    if len(b) > max_bytes:
+                        log_str = "[TRUNCATED] " + b[-max_bytes:].decode("utf-8", "replace")
+                    mode = "a" if append else "w"
+                    with open(path, mode, encoding="utf-8") as f:
+                        f.write(log_str)
+
                 from app.services.docker_service import DockerServiceBuildException
                 try:
                     image_tag, build_logs = DockerService.build_image(
@@ -203,13 +212,11 @@ class DeploymentService:
                         build_context=project.build_context,
                         dockerfile_path=project.dockerfile_path
                     )
-                    with open(log_file_path, "w", encoding="utf-8") as f:
-                        f.write(build_logs)
+                    _write_logs(build_logs, log_file_path)
                     deployment.logs_path = log_file_path
                     db.commit()
                 except DockerServiceBuildException as e:
-                    with open(log_file_path, "w", encoding="utf-8") as f:
-                        f.write(e.logs)
+                    _write_logs(e.logs, log_file_path)
                     deployment.logs_path = log_file_path
                     db.commit()
                     raise e
@@ -249,11 +256,18 @@ class DeploymentService:
                     is_healthy = False
                     for _ in range(settings.HEALTH_CHECK_TIMEOUT):
                         try:
-                            r = httpx.get(health_url, timeout=2.0)
-                            logger.info(f"Health check attempt to {health_url}: {r.status_code}")
-                            if r.status_code == 200:
-                                is_healthy = True
-                                break
+                            # Stream to avoid downloading huge payloads if misconfigured
+                            with httpx.stream(
+                                "GET",
+                                health_url,
+                                timeout=httpx.Timeout(settings.WEBHOOK_TIMEOUT),
+                                follow_redirects=True,
+                                max_redirects=3
+                            ) as r:
+                                logger.info(f"Health check attempt to {health_url}: {r.status_code}")
+                                if r.status_code == 200:
+                                    is_healthy = True
+                                    break
                         except httpx.RequestError as exc:
                             logger.info(f"Health check attempt to {health_url} failed with exception: {exc}")
                         time.sleep(settings.POLLING_INTERVAL)
@@ -261,9 +275,7 @@ class DeploymentService:
                     if not is_healthy:
                         try:
                             runtime_logs = DockerService.tail_logs(container_name, tail=100)
-                            with open(log_file_path, "a", encoding="utf-8") as f:
-                                f.write("\n\n--- RUNTIME LOGS (HEALTH CHECK FAILED) ---\n\n")
-                                f.write(runtime_logs)
+                            _write_logs("\n\n--- RUNTIME LOGS (HEALTH CHECK FAILED) ---\n\n" + runtime_logs, log_file_path, append=True)
                         except Exception as el:
                             logger.error(f"Failed to fetch runtime logs: {el}")
                             
@@ -283,6 +295,8 @@ class DeploymentService:
                     if old_deployment:
                         old_container_name = f"bonk-{project.id}-{old_deployment.deployment_number}"
                         DockerService.stop_and_remove_container(old_container_name)
+                        old_deployment.status = DeploymentStatus.ARCHIVED
+                        db.commit()
 
                 duration = time.time() - start_time
                 logger.info(f"Deployment succeeded | deployment_id={deployment.id} project_id={project.id} status={deployment.status} duration={duration:.2f}s")

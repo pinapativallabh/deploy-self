@@ -62,7 +62,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-neutral-400">Active Deployments</p>
-              <p className="text-2xl font-bold text-white">{loading ? '-' : projects.filter(p => p.active_deployment_id).length}</p>
+              <p className="text-2xl font-bold text-white">{loading ? '-' : projects.filter(p => p.container_status === 'running').length}</p>
             </div>
           </div>
         </div>

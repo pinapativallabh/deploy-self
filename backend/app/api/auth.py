@@ -24,6 +24,7 @@ from redis.asyncio import Redis
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, get_raw_token, get_redis, RateLimiter
+from app.core.config import settings
 from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
@@ -59,7 +60,7 @@ logger = logging.getLogger("app.api.auth")
 def register(
     data: RegisterRequest,
     db: Session = Depends(get_db),
-    _rate_limit: None = Depends(RateLimiter(max_requests=5, window_seconds=60)),
+    _rate_limit: None = Depends(RateLimiter(max_requests=settings.RATE_LIMIT_REGISTER_MAX, window_seconds=settings.RATE_LIMIT_REGISTER_WINDOW)),
 ) -> User:
     """
     Create a new user account.
@@ -85,7 +86,7 @@ async def login(
     data: LoginRequest,
     db: Session = Depends(get_db),
     redis: Redis = Depends(get_redis),
-    _rate_limit: None = Depends(RateLimiter(max_requests=10, window_seconds=60)),
+    _rate_limit: None = Depends(RateLimiter(max_requests=settings.RATE_LIMIT_LOGIN_MAX, window_seconds=settings.RATE_LIMIT_LOGIN_WINDOW)),
 ) -> TokenResponse:
     """
     Authenticate with email/username and password.

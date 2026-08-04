@@ -17,6 +17,7 @@ export interface Project {
   active_deployment_id: string | null;
   created_at: string;
   updated_at: string;
+  container_status?: string | null;
 }
 
 export type DeploymentStatus = 'PENDING' | 'CLONING' | 'BUILDING' | 'STARTING' | 'RUNNING' | 'FAILED' | 'CANCELED' | 'ARCHIVED';

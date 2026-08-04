@@ -36,3 +36,5 @@ class WorkerSettings:
         port=settings.REDIS_PORT,
         database=settings.REDIS_DB,
     )
+    max_jobs = settings.MAX_CONCURRENT_DEPLOYMENTS
+    job_timeout = settings.MAX_DEPLOYMENT_DURATION_MINUTES * 60

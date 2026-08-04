@@ -28,6 +28,14 @@ class EnvironmentService:
     ) -> EnvironmentVariable:
         project = ProjectService.get_project(db, user, project_id)
         
+        from app.core.config import settings
+        count = db.scalar(select(db.func.count(EnvironmentVariable.id)).where(EnvironmentVariable.project_id == project.id))
+        if count >= settings.MAX_ENV_VARS_PER_PROJECT:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Maximum number of environment variables ({settings.MAX_ENV_VARS_PER_PROJECT}) reached for this project",
+            )
+        
         variable = EnvironmentVariable(
             project_id=project.id,
             key=variable_in.key,

@@ -39,6 +39,30 @@ Backend settings are loaded from `backend/.env`; use the repository `.env.exampl
 - Set `CORS_ORIGINS` to a JSON array of trusted frontend origins.
 - Replace the development PostgreSQL password.
 
+### Registration Limits
+Bonk is intended for private, self-hosted environments. You can control account registration using these variables in `backend/.env`:
+- `ALLOW_REGISTRATION`: Set to `false` to disable registration entirely (default: `true`).
+- `MAX_USERS`: Set a numerical limit on total registered accounts (default: `5`). Must be `>0`.
+
+**Bootstrap Behaviour:** For a fresh installation with zero users, the first user registration is always allowed, regardless of the `ALLOW_REGISTRATION` and `MAX_USERS` settings. This ensures you can claim the initial admin/owner account safely.
+
+### Production Safety Limits
+Bonk includes built-in safeguards to protect against abuse when exposed to the Internet. These are configured in `backend/.env` with sensible defaults:
+- `MAX_REQUEST_BODY_MB` (default `5`): Maximum size of an HTTP request body. Prevents memory exhaustion from large payloads.
+- `RATE_LIMIT_LOGIN_MAX` / `RATE_LIMIT_LOGIN_WINDOW` (default `10` per `60`s): Brute-force protection for the login endpoint.
+- `RATE_LIMIT_REGISTER_MAX` / `RATE_LIMIT_REGISTER_WINDOW` (default `5` per `60`s): Spam protection for account creation.
+- `GIT_CLONE_TIMEOUT` (default `300`s): Maximum time allowed for `git clone` operations.
+- `WEBHOOK_TIMEOUT` (default `10`s): Maximum time for application health checks (via HTTP requests) before failing deployment.
+- `MAX_DEPLOYMENT_DURATION_MINUTES` (default `15`m): Limits how long a deployment pipeline can run.
+- `MAX_CONCURRENT_DEPLOYMENTS` (default `2`): Number of simultaneous deployments processed by the ARQ worker.
+- `MAX_DEPLOYMENT_LOG_MB` (default `10`): Truncates build logs to prevent disk exhaustion.
+- `CONTAINER_CPU_LIMIT` (default `1.0`): Default CPU quota given to deployed application containers.
+- `CONTAINER_MEMORY_LIMIT` (default `"512m"`): Default memory limit for deployed applications.
+- `MAX_PROJECT_NAME_LENGTH` (default `64`), `MAX_REPO_URL_LENGTH` (default `256`): Validation limits for project attributes.
+- `MAX_ENV_VARS_PER_PROJECT` (default `50`), `MAX_ENV_VAR_SIZE` (default `4096` bytes): Limits environment variable storage.
+
+Additionally, the application adds robust security headers (e.g. `X-Frame-Options`, `X-Content-Type-Options`) on all endpoints.
+
 Do not commit environment files or mount the Docker socket into an untrusted deployment. The deployment worker requires Docker daemon access and can build and run user-configured repositories.
 
 ## Development and verification

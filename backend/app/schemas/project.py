@@ -3,12 +3,12 @@ from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-
+from app.core.config import settings
 
 class ProjectBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100, strip_whitespace=True)
+    name: str = Field(..., min_length=1, max_length=settings.MAX_PROJECT_NAME_LENGTH, strip_whitespace=True)
     description: Optional[str] = None
-    repository_url: str = Field(..., min_length=1, max_length=500, strip_whitespace=True)
+    repository_url: str = Field(..., min_length=1, max_length=settings.MAX_REPO_URL_LENGTH, strip_whitespace=True)
     default_branch: str = Field(default="main", min_length=1, max_length=255, strip_whitespace=True)
     dockerfile_path: str = Field(default="Dockerfile", min_length=1, max_length=255, strip_whitespace=True)
     build_context: str = Field(default=".", min_length=1, max_length=255, strip_whitespace=True)
@@ -41,9 +41,9 @@ class ProjectCreate(ProjectBase):
 
 
 class ProjectUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100, strip_whitespace=True)
+    name: Optional[str] = Field(None, min_length=1, max_length=settings.MAX_PROJECT_NAME_LENGTH, strip_whitespace=True)
     description: Optional[str] = None
-    repository_url: Optional[str] = Field(None, min_length=1, max_length=500, strip_whitespace=True)
+    repository_url: Optional[str] = Field(None, min_length=1, max_length=settings.MAX_REPO_URL_LENGTH, strip_whitespace=True)
     default_branch: Optional[str] = Field(None, min_length=1, max_length=255, strip_whitespace=True)
     dockerfile_path: Optional[str] = Field(None, min_length=1, max_length=255, strip_whitespace=True)
     build_context: Optional[str] = Field(None, min_length=1, max_length=255, strip_whitespace=True)
@@ -77,5 +77,6 @@ class ProjectResponse(ProjectBase):
     active_deployment_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
+    container_status: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

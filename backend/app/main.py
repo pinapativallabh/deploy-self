@@ -20,6 +20,10 @@ from collections.abc import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.redis import close_redis, create_redis_client, verify_redis
@@ -90,6 +94,29 @@ app = FastAPI(
 register_exception_handlers(app)
 
 # --- Middleware ---
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # Only add generic permissions, do not break frontend apps
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        return response
+
+class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length:
+            if int(content_length) > settings.MAX_REQUEST_BODY_MB * 1024 * 1024:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": "Request body too large"}
+                )
+        return await call_next(request)
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,

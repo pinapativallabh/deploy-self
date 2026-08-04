@@ -61,17 +61,64 @@ class ProjectService:
 
     @staticmethod
     def get_projects(db: Session, user: User) -> Sequence[Project]:
-        stmt = select(Project).where(Project.owner_id == user.id)
-        return db.scalars(stmt).all()
+        from sqlalchemy.orm import joinedload
+        stmt = (
+            select(Project)
+            .where(Project.owner_id == user.id)
+            .options(joinedload(Project.active_deployment))
+        )
+        projects = list(db.scalars(stmt).unique().all())
+        
+        def get_sort_key(p: Project):
+            if p.active_deployment and hasattr(p.active_deployment.created_at, 'timestamp'):
+                return p.active_deployment.created_at.timestamp()
+            return 0
+            
+        projects.sort(key=get_sort_key, reverse=True)
+        
+        from app.services.docker_service import DockerService
+        try:
+            client = DockerService._get_client()
+            containers = client.containers.list(all=True, filters={"name": "bonk-"})
+            container_status_map = {c.name: c.status for c in containers}
+        except Exception:
+            container_status_map = {}
+            
+        for p in projects:
+            p.container_status = None
+            if p.active_deployment_id and p.active_deployment:
+                c_name = f"bonk-{p.id}-{p.active_deployment.deployment_number}"
+                p.container_status = container_status_map.get(c_name)
+                
+        return projects
 
     @staticmethod
     def get_project(db: Session, user: User, project_id: uuid.UUID) -> Project:
-        project = db.get(Project, project_id)
+        from sqlalchemy.orm import joinedload
+        stmt = (
+            select(Project)
+            .where(Project.id == project_id)
+            .options(joinedload(Project.active_deployment))
+        )
+        project = db.scalar(stmt)
         if not project or project.owner_id != user.id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found",
             )
+            
+        from app.services.docker_service import DockerService
+        try:
+            client = DockerService._get_client()
+            if project.active_deployment_id and project.active_deployment:
+                c_name = f"bonk-{project.id}-{project.active_deployment.deployment_number}"
+                containers = client.containers.list(all=True, filters={"name": c_name})
+                project.container_status = containers[0].status if containers else None
+            else:
+                project.container_status = None
+        except Exception:
+            project.container_status = None
+            
         return project
 
     @staticmethod

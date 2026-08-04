@@ -6,9 +6,11 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
+from app.core.config import settings
+
 class EnvironmentVariableBase(BaseModel):
     key: str = Field(..., max_length=255, strip_whitespace=True)
-    value: str = Field(..., max_length=4096, strip_whitespace=True)
+    value: str = Field(..., max_length=settings.MAX_ENV_VAR_SIZE, strip_whitespace=True)
     is_secret: bool = Field(default=False)
 
     @field_validator("key")
@@ -27,7 +29,7 @@ class EnvironmentVariableCreate(EnvironmentVariableBase):
 
 class EnvironmentVariableUpdate(BaseModel):
     key: Optional[str] = Field(None, max_length=255, strip_whitespace=True)
-    value: Optional[str] = Field(None, max_length=4096, strip_whitespace=True)
+    value: Optional[str] = Field(None, max_length=settings.MAX_ENV_VAR_SIZE, strip_whitespace=True)
     is_secret: Optional[bool] = None
 
     @field_validator("key")

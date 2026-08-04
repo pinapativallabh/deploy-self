@@ -29,17 +29,23 @@ class GitService:
             base_dir = GitService.get_clone_base_dir()
             repo_path = base_dir / str(project_id)
 
+            # Prevent terminal prompts and apply basic timeouts for git clone
+            git_env = {
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_SSH_COMMAND": f"ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout={settings.GIT_CLONE_TIMEOUT}",
+            }
+
             if repo_path.exists() and (repo_path / ".git").exists():
                 logger.info(f"Reusing existing clone at {repo_path} for project {project_id}")
                 repo = Repo(repo_path)
                 
                 # Fetch all remotes
                 for remote in repo.remotes:
-                    remote.fetch()
+                    remote.fetch(env=git_env)
 
             else:
                 logger.info(f"Cloning {repository_url} to {repo_path} for project {project_id}")
-                repo = Repo.clone_from(repository_url, repo_path)
+                repo = Repo.clone_from(repository_url, repo_path, env=git_env)
 
             if commit_sha:
                 repo.git.reset("--hard")
