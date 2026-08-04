@@ -61,6 +61,19 @@ class DockerService:
             return image_tag, build_logs_str
             
         except BuildError as e:
+            # Check if it's a false positive (docker-py BuildKit parsing bug)
+            try:
+                client.images.get(image_tag)
+                # Image exists, so build actually succeeded!
+                build_logs_str = ""
+                for chunk in e.build_log:
+                    if 'stream' in chunk:
+                        build_logs_str += chunk['stream']
+                logger.info(f"Successfully built image {image_tag} (recovered from false BuildError)")
+                return image_tag, build_logs_str
+            except ImageNotFound:
+                pass
+
             # Build error contains the build logs
             error_log = ""
             for chunk in e.build_log:
@@ -68,6 +81,8 @@ class DockerService:
                     error_log += chunk['stream']
                 elif 'error' in chunk:
                     error_log += chunk['error']
+            
+            error_log += f"\nBuildError: {str(e)}"
             logger.error(f"Failed to build image {image_tag}: {error_log}")
             raise DockerServiceBuildException(f"Docker build failed", logs=error_log)
         except APIError as e:
