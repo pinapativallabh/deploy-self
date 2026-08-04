@@ -2,7 +2,7 @@ import uuid
 from typing import Sequence
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -29,7 +29,7 @@ class EnvironmentService:
         project = ProjectService.get_project(db, user, project_id)
         
         from app.core.config import settings
-        count = db.scalar(select(db.func.count(EnvironmentVariable.id)).where(EnvironmentVariable.project_id == project.id))
+        count = db.scalar(select(func.count(EnvironmentVariable.id)).where(EnvironmentVariable.project_id == project.id))
         if count >= settings.MAX_ENV_VARS_PER_PROJECT:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
