@@ -52,8 +52,8 @@ export async function apiClient<T>(
     headers: buildHeaders(),
   });
 
-  // On 401, attempt a token refresh and retry once
-  if (response.status === 401 && typeof window !== 'undefined' && !endpoint.includes('/auth/refresh')) {
+  // On 401, attempt a token refresh and retry once (unless it's a login or refresh request)
+  if (response.status === 401 && typeof window !== 'undefined' && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/login')) {
     // Deduplicate concurrent refresh attempts
     if (!isRefreshing) {
       isRefreshing = true;
