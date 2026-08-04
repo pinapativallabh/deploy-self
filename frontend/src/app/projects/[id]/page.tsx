@@ -69,7 +69,7 @@ export default function ProjectDetailsPage() {
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, isEditing]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -189,9 +189,10 @@ export default function ProjectDetailsPage() {
       });
       setNewEnv({ key: '', value: '' });
       await loadData();
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
-      alert(`Failed to add environment variable: ${error.message || 'Unknown error'}`);
+      const e = error as Error;
+      alert(`Failed to add environment variable: ${e.message || 'Unknown error'}`);
     }
   };
 

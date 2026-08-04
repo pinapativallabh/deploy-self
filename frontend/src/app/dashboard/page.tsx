@@ -3,7 +3,7 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { apiClient } from '@/lib/api/client';
 import { Project } from '@/types';
-import { Package, Activity, Clock, Plus } from 'lucide-react';
+import { Package, Activity, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
