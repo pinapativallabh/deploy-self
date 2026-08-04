@@ -261,8 +261,7 @@ class DeploymentService:
                                 "GET",
                                 health_url,
                                 timeout=httpx.Timeout(settings.WEBHOOK_TIMEOUT),
-                                follow_redirects=True,
-                                max_redirects=3
+                                follow_redirects=True
                             ) as r:
                                 logger.info(f"Health check attempt to {health_url}: {r.status_code}")
                                 if r.status_code == 200:
