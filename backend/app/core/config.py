@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
+    # Public-facing host used to generate deployment URLs.
+    # Set this to the server's public IP or domain in production
+    # (e.g. "ec2-1-2-3-4.compute.amazonaws.com" or "deploy.example.com").
+    PUBLIC_HOST: str = "localhost"
+
     # --- PostgreSQL ---
     POSTGRES_USER: str = "bonk"
     POSTGRES_PASSWORD: str = "bonk_dev_password"

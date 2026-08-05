@@ -242,7 +242,7 @@ class DeploymentService:
                 if ports:
                     host_port = list(ports.values())[0]
                     deployment.host_port = host_port
-                    deployment.deployment_url = f"http://localhost:{host_port}"
+                    deployment.deployment_url = f"http://{settings.PUBLIC_HOST}:{host_port}"
                     db.commit()
 
                 # Health Check
