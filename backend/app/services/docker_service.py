@@ -285,8 +285,11 @@ class DockerService:
             # disrupt unrelated applications, so only Bonk-safe resources are pruned.
             logger.info("Successfully pruned stopped containers and dangling images")
         except APIError as e:
-            logger.error(f"Docker API error during prune: {e}")
-            raise DockerServiceException(f"Failed to prune resources: {e}")
+            if e.response is not None and e.response.status_code == 409:
+                logger.warning(f"Docker API error during prune (ignored): {e}")
+            else:
+                logger.error(f"Docker API error during prune: {e}")
+                raise DockerServiceException(f"Failed to prune resources: {e}")
 
     @staticmethod
     def cleanup_project_resources(project_id: str) -> None:

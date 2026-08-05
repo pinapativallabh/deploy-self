@@ -22,7 +22,7 @@ location /apps/{slug}/ {{
     proxy_pass http://{container_name}:{port};
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_addrs;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     
     # Websocket support
@@ -50,8 +50,8 @@ location /apps/{slug}/ {{
             container = client.containers.get("bonk-nginx")
             res = container.exec_run("nginx -s reload")
             if res.exit_code != 0:
-                logger.error(f"Failed to reload NGINX: {{res.output.decode('utf-8')}}")
+                logger.error(f"Failed to reload NGINX: {res.output.decode('utf-8')}")
             else:
                 logger.info("NGINX reloaded successfully")
         except Exception as e:
-            logger.error(f"Error executing NGINX reload: {{e}}")
+            logger.error(f"Error executing NGINX reload: {e}")
