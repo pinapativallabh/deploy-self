@@ -109,10 +109,10 @@ class DockerService:
                 name=container_name,
                 detach=True,
                 environment=env_vars or {},
-                publish_all_ports=True,
                 restart_policy={"Name": "on-failure", "MaximumRetryCount": 3},
                 nano_cpus=nano_cpus,
                 mem_limit=mem_limit,
+                network="bonk_net",
             )
             logger.info(f"Successfully started container {container_name} (ID: {container.id})")
             return container.id
@@ -124,23 +124,23 @@ class DockerService:
             raise DockerServiceException(f"Docker API error starting container: {e}")
 
     @staticmethod
-    def get_container_ports(container_name_or_id: str) -> Dict[str, int]:
+    def get_internal_ports(container_name_or_id: str) -> list[int]:
         client = DockerService._get_client()
         try:
             container = client.containers.get(container_name_or_id)
             container.reload()
-            ports = container.attrs['NetworkSettings']['Ports']
-            # ports looks like {'8000/tcp': [{'HostIp': '0.0.0.0', 'HostPort': '32768'}]}
-            mapped_ports = {}
-            if ports:
-                for container_port, host_bindings in ports.items():
-                    if host_bindings:
-                        mapped_ports[container_port] = int(host_bindings[0]['HostPort'])
-            return mapped_ports
+            # If ports are exposed (e.g. EXPOSE 8000 in Dockerfile), they will be in Config.ExposedPorts
+            exposed = container.attrs.get('Config', {}).get('ExposedPorts', {})
+            ports = []
+            for port_proto in exposed.keys():
+                port_str = port_proto.split('/')[0]
+                if port_str.isdigit():
+                    ports.append(int(port_str))
+            return ports
         except docker.errors.NotFound:
-            return {}
+            return []
         except APIError as e:
-            raise DockerServiceException(f"Failed to get container ports: {e}")
+            raise DockerServiceException(f"Failed to get container internal ports: {e}")
 
     @staticmethod
     def stop_and_remove_container(container_name_or_id: str) -> None:

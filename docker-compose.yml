@@ -1,3 +1,7 @@
+networks:
+  bonk_net:
+    name: bonk_net
+
 services:
   postgres:
     image: postgres:15-alpine
@@ -16,6 +20,8 @@ services:
       timeout: 5s
       retries: 5
     restart: always
+    networks:
+      - bonk_net
 
   redis:
     image: redis:7-alpine
@@ -30,14 +36,14 @@ services:
       timeout: 5s
       retries: 5
     restart: always
+    networks:
+      - bonk_net
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: bonk-backend
-    ports:
-      - "8000:8000"
     env_file:
       - ./backend/.env
     environment:
@@ -52,6 +58,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - repos_data:/app/storage/repos
       - logs_data:/app/storage/logs
+      - ./nginx/conf.d/apps:/app/nginx/conf.d/apps
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -66,20 +73,22 @@ services:
       retries: 6
       start_period: 15s
     restart: always
+    networks:
+      - bonk_net
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_API_URL: http://${PUBLIC_HOST:-localhost}/api
     container_name: bonk-frontend
-    ports:
-      - "3000:3000"
     depends_on:
       backend:
         condition: service_healthy
     restart: always
+    networks:
+      - bonk_net
 
   worker:
     build:
@@ -100,12 +109,31 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - repos_data:/app/storage/repos
       - logs_data:/app/storage/logs
+      - ./nginx/conf.d/apps:/app/nginx/conf.d/apps
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       backend:
         condition: service_healthy
     restart: always
+    networks:
+      - bonk_net
+
+  nginx:
+    image: nginx:alpine
+    container_name: bonk-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - frontend
+      - backend
+    restart: always
+    networks:
+      - bonk_net
 
 volumes:
   postgres_data:

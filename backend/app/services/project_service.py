@@ -33,12 +33,32 @@ class ProjectService:
             )
 
     @staticmethod
+    def _generate_slug(db: Session, name: str) -> str:
+        import re
+        import random
+        import string
+        
+        base_slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+        if not base_slug:
+            base_slug = "app"
+            
+        slug = base_slug
+        while db.scalar(select(Project).where(Project.slug == slug)):
+            suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            slug = f"{base_slug}-{suffix}"
+            
+        return slug
+
+    @staticmethod
     def create_project(db: Session, user: User, project_in: ProjectCreate) -> Project:
         ProjectService._enforce_unique_name(db, user.id, project_in.name)
+
+        slug = ProjectService._generate_slug(db, project_in.name)
 
         project = Project(
             owner_id=user.id,
             name=project_in.name,
+            slug=slug,
             description=project_in.description,
             repository_url=project_in.repository_url,
             default_branch=project_in.default_branch,
@@ -157,6 +177,10 @@ class ProjectService:
         # Cleanup git repository cache
         from app.services.git_service import GitService
         GitService.delete_repo(str(project.id))
+        
+        # Cleanup NGINX configuration
+        from app.services.nginx_service import NginxService
+        NginxService.remove_deployment(project.slug)
         
         db.delete(project)
         db.commit()

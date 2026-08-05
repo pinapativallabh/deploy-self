@@ -234,16 +234,34 @@ class DeploymentService:
                     env_vars=env_vars
                 )
 
-                # Give it a tiny bit of time to register ports
+                # Give it a tiny bit of time to start
                 time.sleep(2)
-                ports = DockerService.get_container_ports(container_name)
                 
-                host_port = None
+                # Fetch exposed internal ports (not published to host)
+                ports = DockerService.get_internal_ports(container_name)
+                
+                # Assume port 80 or the first port if any
+                target_port = 80
                 if ports:
-                    host_port = list(ports.values())[0]
-                    deployment.host_port = host_port
-                    deployment.deployment_url = f"http://{settings.PUBLIC_HOST}:{host_port}"
-                    db.commit()
+                    # Prefer 8000, 3000, 8080, 80 in that order if present, else first
+                    for p in [8000, 3000, 8080, 80]:
+                        if p in ports:
+                            target_port = p
+                            break
+                    else:
+                        target_port = ports[0]
+                        
+                # Update deployment record
+                # We no longer have a specific published host_port
+                deployment.host_port = None
+                
+                # The protocol should ideally be inferred, but we assume http for now.
+                deployment.deployment_url = f"http://{settings.PUBLIC_HOST}/apps/{project.slug}"
+                db.commit()
+
+                # Add to NGINX
+                from app.services.nginx_service import NginxService
+                NginxService.add_or_update_deployment(project.slug, container_name, target_port)
 
                 # Health Check
                 if project.health_check_path:
@@ -251,7 +269,7 @@ class DeploymentService:
                         DockerService.stop_container(container_name)
                         raise RuntimeError("Container exposes no ports for health check")
                     
-                    health_url = f"http://host.docker.internal:{host_port}{project.health_check_path}"
+                    health_url = f"http://{container_name}:{target_port}{project.health_check_path}"
                     
                     is_healthy = False
                     for _ in range(settings.HEALTH_CHECK_TIMEOUT):

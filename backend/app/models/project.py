@@ -56,6 +56,12 @@ class Project(Base):
         nullable=False,
     )
 
+    slug: Mapped[str] = mapped_column(
+        String(255),
+        unique=True,
+        nullable=False,
+    )
+
     description: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,

@@ -8,6 +8,7 @@ export interface Project {
   id: string;
   owner_id: string;
   name: string;
+  slug: string;
   description: string | null;
   repository_url: string;
   default_branch: string;
