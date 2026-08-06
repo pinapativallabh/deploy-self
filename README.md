@@ -26,7 +26,18 @@ cp .env.example backend/.env
 docker compose up --build -d
 ```
 
-Open `http://localhost:3000/login`. The API health endpoint is available at `http://localhost:8000/health`.
+Open `http://localhost:8080` for the dashboard. The API health endpoint is available at `http://localhost:8080/api/health`.
+
+### Deployment routing
+
+Each deployed application is reachable at `http://<slug>.<PUBLIC_HOST>.nip.io` (or with `:<PUBLIC_PORT>` if not port 80). Set `PUBLIC_HOST` to the server's public IP and `PUBLIC_PORT` to the port nginx listens on:
+
+```bash
+PUBLIC_HOST=16.112.249.241 PUBLIC_PORT=80 docker compose up --build -d
+# Deployments are accessible at e.g. http://my-app.16.112.249.241.nip.io
+```
+
+Routing uses the `Host` header so deployed applications can use absolute asset paths (`/assets/...`) without any base-path configuration.
 
 The Compose configuration runs Alembic migrations before starting the API and waits for PostgreSQL, Redis, and API health checks before dependent services start.
 

@@ -52,7 +52,12 @@ class Settings(BaseSettings):
     # Public-facing host used to generate deployment URLs.
     # Set this to the server's public IP or domain in production
     # (e.g. "ec2-1-2-3-4.compute.amazonaws.com" or "deploy.example.com").
+    # Do NOT include a port here — use PUBLIC_PORT for that.
     PUBLIC_HOST: str = "localhost"
+
+    # External port where nginx is reachable.
+    # Deployment URLs include this port unless it is 80.
+    PUBLIC_PORT: int = 80
 
     # --- PostgreSQL ---
     POSTGRES_USER: str = "bonk"

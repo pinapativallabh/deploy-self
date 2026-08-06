@@ -52,7 +52,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REPO_CACHE_PATH: /app/storage/repos
-      PUBLIC_HOST: ${PUBLIC_HOST:-localhost:8080}
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+      PUBLIC_PORT: ${PUBLIC_PORT:-8080}
     command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -81,7 +82,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://${PUBLIC_HOST:-localhost}/api
+        NEXT_PUBLIC_API_URL: http://${PUBLIC_HOST:-localhost}:${PUBLIC_PORT:-8080}/api
     container_name: bonk-frontend
     depends_on:
       backend:
@@ -104,7 +105,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REPO_CACHE_PATH: /app/storage/repos
-      PUBLIC_HOST: ${PUBLIC_HOST:-localhost:8080}
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+      PUBLIC_PORT: ${PUBLIC_PORT:-8080}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - repos_data:/app/storage/repos

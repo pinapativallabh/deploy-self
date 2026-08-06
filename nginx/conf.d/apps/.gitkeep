@@ -1,0 +1,2 @@
+# This directory is populated dynamically by the deployment worker.
+# Each deployed app gets a <slug>.conf file with a full nginx server block.

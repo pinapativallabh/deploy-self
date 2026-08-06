@@ -21,6 +21,7 @@ import httpx
 import logging
 from app.db.session import SessionLocal
 from app.core.config import settings
+from app.services.nginx_service import NginxService, NginxConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -255,12 +256,12 @@ class DeploymentService:
                 # We no longer have a specific published host_port
                 deployment.host_port = None
                 
-                # The protocol should ideally be inferred, but we assume http for now.
-                deployment.deployment_url = f"http://{settings.PUBLIC_HOST}/apps/{project.slug}"
+                # Host-based deployment URL: <slug>.<PUBLIC_HOST>.nip.io
+                deployment.deployment_url = NginxService._get_deployment_url(project.slug)
                 db.commit()
 
-                # Add to NGINX
-                from app.services.nginx_service import NginxService
+                # Add to NGINX — validates config before reload.
+                # If validation fails, NginxConfigError is raised and deployment fails.
                 NginxService.add_or_update_deployment(project.slug, container_name, target_port)
 
                 # Health Check
@@ -334,3 +335,9 @@ class DeploymentService:
                 
                 failed_container_name = f"bonk-{deployment.project_id}-{deployment.deployment_number}"
                 DockerService.stop_and_remove_container(failed_container_name)
+
+                # Clean up nginx config on failure to prevent stale entries
+                try:
+                    NginxService.remove_deployment(project.slug)
+                except Exception as nginx_err:
+                    logger.warning(f"Failed to clean up nginx config for {project.slug}: {nginx_err}")
